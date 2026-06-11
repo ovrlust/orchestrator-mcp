@@ -22,6 +22,7 @@ modules via `DELEGATE_MCP_PATH`.)
 | `spawn_agent` | Same agent, but in the BACKGROUND — returns an id immediately; fan out several in parallel |
 | `agent_result` | Poll or wait for a spawned agent's result |
 | `agent_send` | Continue any agent with a follow-up message, its full transcript intact (live agents get it pushed mid-run) |
+| `agent_stop` | Cancel a running spawned agent; its last per-step checkpoint stays resumable |
 | `direct` | Director: split a plan into sections, each run by its OWN agent in parallel (deps respected) |
 | `supervise` | Same dispatch as `direct`, plus a supervisor model polling live state that can message agents or stop the run |
 | `board_read` / `board_write` | Read/seed the shared blackboard |
@@ -123,6 +124,45 @@ Sub-agents work like Claude's native Agent tool, on cheap models:
 Typical economics: spawn an `explore` scout to sweep a codebase question, keep
 working, collect a 1-page report — the cheap model burned its context on the
 files so the orchestrator doesn't have to.
+
+## Driving sub-agents: the orchestration playbook
+
+Measured on the default worker (deepseek-v4-flash via opencode zen): it is a
+**strong reasoner but a weak agentic-loop driver**. Given a loose task it
+wanders — one real run burned 15 steps / 182k prompt tokens and never called
+`done()`. The same question, asked correctly, finished in 8 steps / 38k tokens
+with a line-accurate answer. The difference was entirely the orchestrator's
+prompt.
+
+**Direction of labor: the cheap model reads, the orchestrator navigates.** Push
+bounded reading and grind DOWN to workers so their context absorbs the file
+bulk, not yours; keep all navigation, judgment, and anything needing the live
+conversation. If you can't name the files or state the success check, the task
+isn't ready to delegate — scope it first.
+
+Three rules when you (the master agent) write a sub-agent task:
+
+1. **Scope the reads.** Name the files when you can ("read ONLY messages.py and
+   agent.py's push-delivery loop"). An open-ended "investigate X" invites a
+   whole-repo crawl.
+2. **Demand convergence.** The presets now instruct "call done() the moment you
+   can answer", but reinforce it in the task for anything broad.
+3. **Force a schema.** Pass `output_schema` for anything you'll consume
+   programmatically — a typed `done` is what reliably stops exploration and
+   returns a parsed object instead of rambling prose.
+
+Pick the tool by task shape:
+
+| Task | Use |
+|------|-----|
+| Gather codebase context without bloating yourself | `spawn_agent` / `run_agent`, `agent_type=explore`, named files + a schema |
+| One fully-specified mechanical edit | `run_agent` (`general`), exact file + change |
+| Many independent stateless orders (bulk transform) | `delegate_run`, one validator each |
+| Parallel sections that coordinate | `direct` / `supervise` |
+| Anything needing judgment or this conversation's context | do it yourself |
+
+Rule of thumb: delegate when the output is much smaller than the input (read 100
+files → a 20-line answer) AND the task is bounded.
 
 ## Multi-agent coordination
 
