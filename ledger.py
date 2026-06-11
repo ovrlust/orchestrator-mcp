@@ -29,16 +29,9 @@ MODELS = [
         0.0,
     ),
     (
-        "qwen3.6-plus-free",
+        "nemotron-3-ultra-free",
         "$0 / $0",
-        "FREE via opencode zen, good structured output",
-        0.0,
-        0.0,
-    ),
-    (
-        "minimax-m3-free",
-        "$0 / $0",
-        "FREE via opencode zen, bulk text",
+        "FREE via opencode zen, lightest reasoner — route mechanical/bulk work here",
         0.0,
         0.0,
     ),

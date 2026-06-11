@@ -47,3 +47,7 @@
 {"ts": 1781157043.307, "type": "start", "agent": "true-claim", "task": "CLAIM to verify against the code: sandbox.py blocks 'rm -rf' via the DENY regex."}
 {"ts": 1781157048.301, "type": "finish", "agent": "false-claim", "status": "done"}
 {"ts": 1781157064.085, "type": "finish", "agent": "true-claim", "status": "done"}
+{"ts": 1781157390.016, "type": "start", "agent": "y1", "task": "What is ledger.py's role? Answer concisely."}
+{"ts": 1781157390.073, "type": "start", "agent": "y2", "task": "What is cache.py's role? Answer concisely."}
+{"ts": 1781157395.079, "type": "finish", "agent": "y1", "status": "done"}
+{"ts": 1781157397.688, "type": "finish", "agent": "y2", "status": "done"}

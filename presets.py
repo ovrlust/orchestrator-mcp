@@ -9,10 +9,18 @@ the report contract every type shares).
 # agent's final summary is a return value consumed by an orchestrator, not chat.
 REPORT_CONTRACT = (
     "\n\nREPORT CONTRACT: the summary you pass to done(...) IS your return value, "
-    "delivered verbatim to the orchestrator that spawned you. It is NOT a chat "
-    "message — return the deliverable itself (findings, data, answers, with "
-    "path:line references where relevant), not narration, process talk, or "
-    "pleasantries. Be information-dense; every sentence must carry payload."
+    "parsed by a machine — NOT shown to a human. So:\n"
+    "- NO preamble or sign-off. Never open with 'Now I have...', 'Here is...', "
+    "'Based on my analysis', 'I found that', or any restating of the task. Start "
+    "with the first byte of the actual answer.\n"
+    "- NO process narration ('I read X, then grepped Y'), NO pleasantries, NO "
+    "meta-commentary about your confidence or what you did.\n"
+    "- NO markdown decoration for its own sake — no '##' headers, bold, or "
+    "horizontal rules unless the data genuinely needs structure. Plain dense text "
+    "or a tight list.\n"
+    "- Return ONLY the deliverable (findings/data/answer) with path:line refs "
+    "where relevant. Every token must be payload the orchestrator will use. "
+    "Shorter is better as long as nothing load-bearing is dropped."
 )
 
 _GENERAL = (

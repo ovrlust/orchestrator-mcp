@@ -40,9 +40,32 @@ discipline the model lacks: scope, a convergence signal, and a result shape.
 - **Scope control.** Unbounded, it reads adjacent/irrelevant files "to be
   thorough" (in the 182k run it read `viewer.py`, `director.py`, and grepped
   `@mcp.tool` — none relevant to a message trace).
-- **Reasoning-token burn.** It is a reasoning model: a 2-sentence answer cost
-  **7067 reasoning tokens**. Free tier → $0, irrelevant; on a paid tier this is
-  real cost. Prefer it for reasoning-worthy work, not trivial mechanical calls.
+- **Reasoning-token burn — and it's NOT controllable.** It is a reasoning model:
+  a 2-sentence answer cost **7067 reasoning tokens**. The zen endpoint accepts
+  `reasoning_effort`, `reasoning.enabled=false`, `reasoning.max_tokens`,
+  `chat_template_kwargs.thinking=false` (all HTTP 200) but does NOT honor them —
+  measured `reasoning.enabled=false` *increased* reasoning on a real task
+  (3836→5119). Treat reasoning as a fixed, unavoidable cost of this model.
+  - Reasoning tokens cost wall-clock and $ (on paid tiers) but **never enter the
+    orchestrator's context** — they're internal. The only worker output that
+    reaches you is the final answer, which IS controllable (see below).
+  - No free zen model is zero-reasoning. `nemotron-3-ultra-free` is the lightest
+    (27 reasoning tokens vs deepseek's 113 on a trivial transform) — route pure
+    mechanical/bulk work there; keep deepseek for reasoning-worthy tasks.
+  - `minimax-m3-free` and `qwen3.6-plus-free` free promos have ended (paid only);
+    removed from the catalog.
+
+### Minimizing the yap that reaches you
+
+You can't cut the model's internal reasoning, but the **answer prose** it returns
+is fully controllable and is the only part that bloats your context:
+
+- The REPORT CONTRACT (in every preset) now bans preamble ("Now I have the full
+  picture…"), sign-offs, process narration, pleasantries, and gratuitous
+  markdown. Measured: answers now start with the first byte of content instead of
+  a paragraph of throat-clearing.
+- For the hardest guarantee, pass `output_schema` — the answer must be a JSON
+  object with exactly the fields you want, so decoration is impossible.
 - **Literal/positional instructions.** Asked for "the third word of this
   sentence" it answered `word` (actual: `valid`). Don't rely on it for exact
   counting, indexing, or character-level precision.

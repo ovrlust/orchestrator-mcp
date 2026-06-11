@@ -174,5 +174,21 @@
     "step": 3,
     "last_active": 1781157060.526,
     "files": []
+  },
+  "y1": {
+    "task": "What is ledger.py's role? Answer concisely.",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781157392.42,
+    "files": []
+  },
+  "y2": {
+    "task": "What is cache.py's role? Answer concisely.",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781157391.928,
+    "files": []
   }
 }
