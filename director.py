@@ -72,6 +72,7 @@ async def run_section(sec: dict, work: str, model: str, allow_commands) -> dict:
             int(sec.get("max_steps", 25)),
             sec.get("system", ""),
             sec.get("agent_type", "general"),
+            max_total_tokens=int(sec.get("max_total_tokens", 0)),
         )
         status = _status_of(r)
         spec = sec.get("validate")

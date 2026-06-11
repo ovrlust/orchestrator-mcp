@@ -86,12 +86,21 @@ bad prompt degrades gracefully instead of burning a run.
 4. **Output-schema gate** (`agent.py`). With `output_schema`, `done` must be JSON
    matching the schema; rejections are fed back with bounded retries, and the
    final answer-extraction also re-validates. Forces a typed object out.
-5. **Per-step checkpointing** (`subagents.py`). The transcript is saved every
+5. **Redundant-read guard** (`agent.py`). Re-reading the exact same file window
+   returns a one-line "you already read this" note instead of re-serving the
+   content (it's already in context above). The memory is invalidated when the
+   file is written/edited, so a legitimate re-read after a change still works.
+   Stops the model from paying twice for the same bytes.
+6. **Soft token ceiling** (`agent.py`, `max_total_tokens`). A per-agent
+   prompt+completion budget; crossing it forces the final step. Checked between
+   steps, so it overshoots by ~one step + the final call — a runaway backstop for
+   paid models, not an exact cap. (On the free tier, leave it at 0.)
+7. **Per-step checkpointing** (`subagents.py`). The transcript is saved every
    step, so a crash or `agent_stop` mid-run is resumable from the last step
    rather than lost.
-6. **Context compaction** (`compaction.py`). Older turns are summarized when the
+8. **Context compaction** (`compaction.py`). Older turns are summarized when the
    transcript nears the model's window, so a long loop doesn't overflow.
-7. **Heartbeats + monitor** (`coordination.py`). Step and last-active are written
+9. **Heartbeats + monitor** (`coordination.py`). Step and last-active are written
    to the registry each step, so a stalled agent is visible via `monitor` and can
    be steered (`agent_send`) or killed (`agent_stop`).
 

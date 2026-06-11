@@ -46,6 +46,79 @@ def scripted(responses, bodies=None):
     return fake
 
 
+def _usage(pt, ct):
+    return {"prompt_tokens": pt, "completion_tokens": ct}
+
+
+# ------------------------- redundant-read guard -------------------------
+
+
+def test_redundant_read_window_is_flagged_not_reserved(tmp_path):
+    (tmp_path / "f.txt").write_text("\n".join(f"line {i}" for i in range(20)))
+    windows = set()
+    a = agent.exec_tool(
+        "read_file", {"path": "f.txt", "offset": 1, "limit": 10},
+        str(tmp_path), [], set(), "a1", set(), windows,
+    )
+    b = agent.exec_tool(
+        "read_file", {"path": "f.txt", "offset": 1, "limit": 10},
+        str(tmp_path), [], set(), "a1", set(), windows,
+    )
+    assert "line 0" in a  # first read returns content
+    assert "already read" in b and "line 0" not in b  # second is flagged, no content
+
+
+def test_different_window_still_served(tmp_path):
+    (tmp_path / "f.txt").write_text("\n".join(f"line {i}" for i in range(40)))
+    windows = set()
+    agent.exec_tool("read_file", {"path": "f.txt", "offset": 1, "limit": 10},
+                    str(tmp_path), [], set(), "a1", set(), windows)
+    b = agent.exec_tool("read_file", {"path": "f.txt", "offset": 11, "limit": 10},
+                        str(tmp_path), [], set(), "a1", set(), windows)
+    assert "line 10" in b  # a different window is real content, not flagged
+
+
+def test_window_forgotten_after_write(tmp_path):
+    p = tmp_path / "f.txt"
+    p.write_text("\n".join(f"line {i}" for i in range(20)))
+    windows, seen = set(), set()
+    agent.exec_tool("read_file", {"path": "f.txt", "offset": 1, "limit": 10},
+                    str(tmp_path), [], set(), "a1", seen, windows)
+    agent.exec_tool("write_file", {"path": "f.txt", "content": "new content\n" * 20},
+                    str(tmp_path), [], set(), "a1", seen, windows)
+    b = agent.exec_tool("read_file", {"path": "f.txt", "offset": 1, "limit": 10},
+                        str(tmp_path), [], set(), "a1", seen, windows)
+    assert "new content" in b  # re-read after edit returns fresh content, not flag
+
+
+# ------------------------- token ceiling -------------------------
+
+
+def test_token_ceiling_forces_finish(tmp_path, monkeypatch):
+    # Each step reports 600 tokens; ceiling 1000 → forced final on the 2nd step.
+    def big(content_or_tc):
+        return {"choices": [{"message": content_or_tc}], "usage": _usage(500, 100)}
+
+    seq = [
+        big({"tool_calls": [{"id": "c1", "function": {"name": "list_dir", "arguments": "{}"}}]}),
+        big({"tool_calls": [{"id": "c2", "function": {"name": "list_dir", "arguments": "{}"}}]}),
+        big({"content": "forced final answer"}),  # the no-tools extraction call
+    ]
+    it = iter(seq)
+
+    async def fake(client, body, timeout=None, **k):
+        return next(it)
+
+    monkeypatch.setattr(agent, "chat_resilient", fake)
+    r = run(
+        agent.run_agent_loop(
+            "do a long thing", str(tmp_path), max_steps=20, max_total_tokens=1000
+        )
+    )
+    assert r["result"] == "forced final answer"
+    assert r["steps"] < 20  # stopped by the token ceiling, not the step cap
+
+
 # ------------------------- presets -------------------------
 
 

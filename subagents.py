@@ -71,6 +71,7 @@ async def run_and_persist(
     agent_type: str,
     output_schema: dict = None,
     messages: list = None,
+    max_total_tokens: int = 0,
 ) -> dict:
     """Run the agent loop, persist the full transcript, return the result
     (without the transcript — that stays on disk).
@@ -85,6 +86,7 @@ async def run_and_persist(
         "model": model,
         "allow_cmds": allow_cmds or [],
         "output_schema": output_schema,
+        "max_total_tokens": max_total_tokens,
         "task": (task or "(resumed)")[:300],
     }
 
@@ -109,6 +111,7 @@ async def run_and_persist(
             output_schema=output_schema,
             messages=messages,
             checkpoint=_checkpoint,
+            max_total_tokens=max_total_tokens,
         )
     except asyncio.CancelledError:
         # agent_stop cancelled us mid-await. The last checkpoint already holds
@@ -138,6 +141,7 @@ def spawn(
     system: str,
     agent_type: str,
     output_schema: dict = None,
+    max_total_tokens: int = 0,
 ) -> dict:
     """Start an agent in the background. Returns immediately with its id."""
     key = (work, agent_id)
@@ -155,6 +159,7 @@ def spawn(
             "model": model,
             "allow_cmds": allow_cmds or [],
             "output_schema": output_schema,
+            "max_total_tokens": max_total_tokens,
             "task": task[:300],
             "status": "running",
             "result": None,
@@ -172,6 +177,7 @@ def spawn(
             system,
             agent_type,
             output_schema,
+            max_total_tokens=max_total_tokens,
         )
     )
     return {
@@ -284,4 +290,5 @@ async def send(work: str, agent_id: str, message: str, max_steps: int = 15) -> d
         rec.get("agent_type", "general"),
         rec.get("output_schema"),
         messages=transcript,
+        max_total_tokens=rec.get("max_total_tokens", 0),
     )

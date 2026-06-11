@@ -370,6 +370,7 @@ async def run_agent(
     system: str = "",
     agent_type: str = "general",
     output_schema: dict = None,
+    max_total_tokens: int = 0,
 ) -> dict:
     """Run the cheap worker as a TOOL-CALLING sub-agent inside work_dir (blocks
     until it finishes — use spawn_agent for background).
@@ -385,7 +386,13 @@ async def run_agent(
     parsed/validated server-side, rejections are fed back (bounded retries), and
     `result` comes back as the parsed object.
 
-    Worker tools (general): read_file (windowed), write_file, edit_file,
+    max_total_tokens: SOFT ceiling on prompt+completion tokens (0 = unlimited);
+    checked between steps, so once crossed the agent is forced to finish with
+    what it has (actual usage overshoots by ~one step + the final call). A
+    runaway backstop for paid worker models, not an exact cap.
+
+    Worker tools (general): read_file (windowed; re-reading the same window is
+    flagged, not re-served), write_file, edit_file,
     multi_edit, glob, grep (ripgrep, names-first), list_dir, fetch_url,
     web_search, download, update_plan, read_board, write_board, list_agents,
     post_message, read_messages, run_command, done.
@@ -411,6 +418,7 @@ async def run_agent(
         system,
         agent_type,
         output_schema,
+        max_total_tokens=max_total_tokens,
     )
 
 
@@ -425,6 +433,7 @@ async def spawn_agent(
     max_steps: int = 25,
     system: str = "",
     output_schema: dict = None,
+    max_total_tokens: int = 0,
 ) -> dict:
     """Spawn a sub-agent in the BACKGROUND and return immediately with its id.
 
@@ -451,6 +460,7 @@ async def spawn_agent(
         system,
         agent_type,
         output_schema,
+        max_total_tokens=max_total_tokens,
     )
 
 

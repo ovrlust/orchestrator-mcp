@@ -419,6 +419,14 @@ def _grep_fallback(work, pattern, rel, content, maxr):
     )
 
 
+def _forget_windows(windows, t) -> None:
+    """Drop read-window memory for a file the agent just modified, so a
+    re-read of the new content isn't flagged as redundant."""
+    if windows is not None:
+        for w in [w for w in windows if w[0] == str(t)]:
+            windows.discard(w)
+
+
 def _schema_check(text: str, schema: dict):
     """Validate `text` as JSON against `schema`. Returns (obj, None) or (None, error).
     Tolerates the ```json fences cheap models love to add."""
@@ -439,7 +447,7 @@ def _schema_check(text: str, schema: dict):
     return obj, None
 
 
-def exec_tool(name, args, work, allow_cmds, changed, agent_id, seen=None):
+def exec_tool(name, args, work, allow_cmds, changed, agent_id, seen=None, windows=None):
     seen = seen if seen is not None else set()
     try:
         if name == "read_file":
@@ -449,6 +457,15 @@ def exec_tool(name, args, work, allow_cmds, changed, agent_id, seen=None):
             total = len(lines)
             offset = max(1, int(args.get("offset", 1)))
             limit = int(args.get("limit", 0)) or DEFAULT_READ_LINES
+            if windows is not None:
+                key = (str(t), offset, limit)
+                if key in windows:
+                    return (
+                        f"(you already read {args['path']} lines {offset}-{offset + limit - 1} — "
+                        "that exact window is in your context above; use it, read a "
+                        "DIFFERENT window, or move on)"
+                    )
+                windows.add(key)
             start = offset - 1
             chunk = lines[start : start + limit]
             end = start + len(chunk)
@@ -470,6 +487,7 @@ def exec_tool(name, args, work, allow_cmds, changed, agent_id, seen=None):
             t.write_text(args["content"], encoding="utf-8")
             changed.add(str(t))
             seen.add(str(t))  # the agent now knows this file's content
+            _forget_windows(windows, t)
             return f"wrote {t} ({len(args['content'])} chars)"
         if name == "edit_file":
             t = safe_path(work, args["path"])
@@ -489,6 +507,7 @@ def exec_tool(name, args, work, allow_cmds, changed, agent_id, seen=None):
                 return f"ERROR: {e}"
             t.write_text(out, encoding="utf-8")
             changed.add(str(t))
+            _forget_windows(windows, t)
             delta = len(out) - len(src)
             return f"edited {t} ({'+' if delta >= 0 else ''}{delta} chars)"
         if name == "multi_edit":
@@ -504,6 +523,7 @@ def exec_tool(name, args, work, allow_cmds, changed, agent_id, seen=None):
                 return f"ERROR: {e}"
             t.write_text(out, encoding="utf-8")
             changed.add(str(t))
+            _forget_windows(windows, t)
             return f"multi-edited {t} ({len(args['edits'])} edits)"
         if name == "glob":
             root = safe_path(
@@ -616,6 +636,7 @@ async def run_agent_loop(
     output_schema: dict = None,
     messages: list = None,
     checkpoint=None,
+    max_total_tokens: int = 0,
 ) -> dict:
     """Tool-calling agent loop inside work. See server.run_agent for the contract.
 
@@ -625,6 +646,11 @@ async def run_agent_loop(
     previous run instead of starting fresh — task is ignored then. checkpoint, if
     given, is called as checkpoint(messages, step, changed) at the top of every
     step so the caller can persist progress for crash/cancel recovery.
+    max_total_tokens (0 = unlimited) is a SOFT ceiling on prompt+completion
+    tokens: it is checked between steps, so once crossed the next step is forced
+    final (answer with what you have). Actual usage overshoots by the crossing
+    step plus the final answer call — it's a runaway backstop for paid models,
+    not an exact cap.
     """
     allow_cmds = allow_cmds or []
     if agent_type not in presets.PRESETS:
@@ -675,6 +701,7 @@ async def run_agent_loop(
         ]
     changed = set()
     seen = set()  # files read this session (gates edit_file)
+    windows = set()  # exact read windows already returned (redundant-read guard)
     usage = {"prompt_tokens": 0, "completion_tokens": 0}
     tail = []
     msg_cursor = 0  # last message seq this agent has been shown
@@ -741,12 +768,15 @@ async def run_agent_loop(
                     tail.append(f"recv {len(inbound)} msg(s)")
                     event(work, "messages_delivered", agent_id, count=len(inbound))
 
-            # Forced convergence: on the final normal step, drop every tool but
-            # `done` and tell the agent so. A strong-reasoner/weak-loop-driver
-            # model (see docs/deepseek-behavior.md) otherwise keeps gathering
-            # past the budget and returns "(max_steps reached)" with no answer;
-            # this converts that into a real best-effort answer.
-            last_step = step == max_steps - 1
+            # Forced convergence: on the final normal step — or once the token
+            # ceiling is crossed — drop every tool but `done` and tell the agent
+            # so. A strong-reasoner/weak-loop-driver model (see
+            # docs/deepseek-behavior.md) otherwise keeps gathering past the
+            # budget and returns "(max_steps reached)" with no answer; this
+            # converts that into a real best-effort answer.
+            spent = usage["prompt_tokens"] + usage["completion_tokens"]
+            budget_hit = bool(max_total_tokens) and spent >= max_total_tokens
+            last_step = step == max_steps - 1 or budget_hit
             if last_step:
                 step_tools = [
                     t for t in tools if t["function"]["name"] == "done"
@@ -754,9 +784,13 @@ async def run_agent_loop(
                 messages.append(
                     {
                         "role": "user",
-                        "content": "FINAL STEP — no more tool calls are available. "
-                        "Call done() now with your best answer from what you have "
-                        "already gathered.",
+                        "content": (
+                            "TOKEN BUDGET exhausted — FINAL STEP. "
+                            if budget_hit
+                            else "FINAL STEP — no more tool calls are available. "
+                        )
+                        + "Call done() now with your best answer from what you "
+                        "have already gathered.",
                     }
                 )
             else:
@@ -847,7 +881,9 @@ async def run_agent_loop(
                 if allowed_tools is not None and fn not in allowed_tools:
                     res = f"ERROR: tool {fn} is not available to a '{agent_type}' agent"
                 else:
-                    res = exec_tool(fn, a, work, allow_cmds, changed, agent_id, seen)
+                    res = exec_tool(
+                        fn, a, work, allow_cmds, changed, agent_id, seen, windows
+                    )
                 log_call(
                     work,
                     agent_id,

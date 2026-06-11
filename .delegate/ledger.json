@@ -424,5 +424,47 @@
     "prompt_tokens": 13904,
     "completion_tokens": 2721,
     "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 1649,
+    "completion_tokens": 467,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2403,
+    "completion_tokens": 332,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 7122,
+    "completion_tokens": 549,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 14545,
+    "completion_tokens": 290,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 17946,
+    "completion_tokens": 167,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 18371,
+    "completion_tokens": 616,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 19117,
+    "completion_tokens": 3768,
+    "usd": 0.0
   }
 ]
