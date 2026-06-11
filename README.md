@@ -18,7 +18,10 @@ modules via `DELEGATE_MCP_PATH`.)
 | `ask_model` | One stateless work order to a worker. `{text, model, usage}` |
 | `ask_model_batch` | Many independent orders, concurrently |
 | `delegate_run` | **The autonomous loop.** A DAG of orders → worker → apply → validate → retry-once → rollback-on-fail → share → report |
-| `run_agent` | A worker as a sandboxed, board-aware tool-calling agent (incl. surgical `edit_file`) inside `work_dir` |
+| `run_agent` | A worker as a sandboxed, board-aware tool-calling agent (incl. surgical `edit_file`) inside `work_dir`. `agent_type` presets: `general` / `explore` (read-only scout) / `plan`; `output_schema` forces validated JSON results |
+| `spawn_agent` | Same agent, but in the BACKGROUND — returns an id immediately; fan out several in parallel |
+| `agent_result` | Poll or wait for a spawned agent's result |
+| `agent_send` | Continue any agent with a follow-up message, its full transcript intact (live agents get it pushed mid-run) |
 | `direct` | Director: split a plan into sections, each run by its OWN agent in parallel (deps respected) |
 | `supervise` | Same dispatch as `direct`, plus a supervisor model polling live state that can message agents or stop the run |
 | `board_read` / `board_write` | Read/seed the shared blackboard |
@@ -94,6 +97,32 @@ Deterministic gates, no model judgment:
   `allow_commands`, and is subject to the dangerous-pattern denylist regardless.
 
 Omit `validate` to apply without a gate (Claude validates later).
+
+## Sub-agents (run_agent / spawn_agent / agent_result / agent_send)
+
+Sub-agents work like Claude's native Agent tool, on cheap models:
+
+- **Presets** (`agent_type`): `explore` is a read-only scout (find → read windows
+  → return compressed findings with `path:line` refs; cannot edit or run
+  commands — enforced server-side, not just by prompt). `plan` is read-only +
+  `write_board`, returns an implementation plan. `general` (default) is the full
+  executor. Every type gets the REPORT CONTRACT: its `done(summary)` is a return
+  value for the orchestrator, not chat.
+- **Structured output** (`output_schema`): the final summary must be JSON
+  matching your schema — validated server-side, rejections fed back to the agent
+  (bounded retries), `result` returned as the parsed object.
+- **Background** (`spawn_agent`): returns `{agent_id}` immediately; the agent
+  runs inside the MCP server process. Watch live progress with `monitor`,
+  collect with `agent_result` (poll or wait), fan out several in parallel.
+- **Resume** (`agent_send`): every run's full transcript is persisted to
+  `work_dir/.delegate/agents/<id>.json`. Send a follow-up to a FINISHED agent
+  and it continues with its whole context intact (same model, same allowlist,
+  same type). Send to a RUNNING agent and the message is pushed into its loop
+  mid-run.
+
+Typical economics: spawn an `explore` scout to sweep a codebase question, keep
+working, collect a 1-page report — the cheap model burned its context on the
+files so the orchestrator doesn't have to.
 
 ## Multi-agent coordination
 

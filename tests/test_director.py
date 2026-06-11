@@ -17,7 +17,9 @@ def _fake_loop_factory(record=None, errors=None, slow=None):
     errors = errors or set()
     slow = slow or set()
 
-    async def fake_loop(task, work, model, agent_id, allow, max_steps, system):
+    async def fake_loop(
+        work, task, model, agent_id, allow, max_steps, system, agent_type, **kw
+    ):
         if record is not None:
             record.append(agent_id)
         if agent_id in slow:
@@ -32,7 +34,7 @@ def _fake_loop_factory(record=None, errors=None, slow=None):
 def _patch(monkeypatch, **kw):
     monkeypatch.setattr(director, "API_KEY", "test", raising=False)
     monkeypatch.setattr(director.workers, "API_KEY", "test")
-    monkeypatch.setattr(director, "run_agent_loop", _fake_loop_factory(**kw))
+    monkeypatch.setattr(director, "run_and_persist", _fake_loop_factory(**kw))
 
 
 # ------------------------- Director -------------------------
@@ -49,7 +51,7 @@ def test_director_runs_all_sections(tmp_path, monkeypatch):
 def test_director_respects_depends_on(tmp_path, monkeypatch):
     order = []
     monkeypatch.setattr(director.workers, "API_KEY", "test")
-    monkeypatch.setattr(director, "run_agent_loop", _fake_loop_factory(record=order))
+    monkeypatch.setattr(director, "run_and_persist", _fake_loop_factory(record=order))
     secs = [
         {"id": "a", "task": "first"},
         {"id": "b", "task": "second", "depends_on": ["a"]},
@@ -60,7 +62,7 @@ def test_director_respects_depends_on(tmp_path, monkeypatch):
 
 def test_director_skips_dependent_when_dep_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(director.workers, "API_KEY", "test")
-    monkeypatch.setattr(director, "run_agent_loop", _fake_loop_factory(errors={"a"}))
+    monkeypatch.setattr(director, "run_and_persist", _fake_loop_factory(errors={"a"}))
     secs = [
         {"id": "a", "task": "will fail"},
         {"id": "b", "task": "needs a", "depends_on": ["a"]},
@@ -110,7 +112,7 @@ def test_supervisor_polls_and_messages(tmp_path, monkeypatch):
 
 def test_supervisor_stop_cancels_running_agents(tmp_path, monkeypatch):
     monkeypatch.setattr(director.workers, "API_KEY", "test")
-    monkeypatch.setattr(director, "run_agent_loop", _fake_loop_factory(slow={"a"}))
+    monkeypatch.setattr(director, "run_and_persist", _fake_loop_factory(slow={"a"}))
 
     async def fake_decide(client, snap, model):
         return {"messages": [], "stop": True, "note": "abort"}

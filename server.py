@@ -41,9 +41,9 @@ import messages as msgbus
 import project
 import cache
 import toollog
+import subagents
 from workers import call_model
 from delegate import run_delegate
-from agent import run_agent_loop
 from director import run_director
 
 mcp = FastMCP("delegate")
@@ -347,6 +347,18 @@ async def delegate_run(
 # ------------------------- agent worker -------------------------
 
 
+def _agent_preflight(work_dir: str, agent_id: str):
+    """Shared checks for the agent tools. Returns (work, None) or (None, error)."""
+    if not workers.API_KEY:
+        return None, {"error": "OPENROUTER_API_KEY is not set in this server's env."}
+    work = _existing(work_dir)
+    if not work:
+        return None, {"error": f"work_dir not found: {work_dir}"}
+    if not subagents.valid_id(agent_id):
+        return None, {"error": f"invalid agent_id (use [A-Za-z0-9_.-], max 64): {agent_id}"}
+    return work, None
+
+
 @mcp.tool()
 async def run_agent(
     task: str,
@@ -356,29 +368,123 @@ async def run_agent(
     allow_commands: list = None,
     max_steps: int = 25,
     system: str = "",
+    agent_type: str = "general",
+    output_schema: dict = None,
 ) -> dict:
-    """Run the cheap worker as a TOOL-CALLING agent inside work_dir.
+    """Run the cheap worker as a TOOL-CALLING sub-agent inside work_dir (blocks
+    until it finishes — use spawn_agent for background).
 
-    Worker tools: read_file (windowed), write_file, edit_file, list_dir, grep
-    (ripgrep, names-first), read_board, write_board, list_agents, post_message,
-    read_messages, run_command, done. edit_file makes surgical str-replace edits
-    (read-before-edit enforced, match must be unique). The agent registers itself,
-    fires lifecycle events, shares the board/registry, and can message other
-    agents or the orchestrator over the bus.
+    agent_type presets (system prompt + tool subset):
+      general  full toolset executor (default)
+      explore  READ-ONLY scout — finds and reads, returns compressed findings
+               with path:line refs; cannot edit or run commands. Use to gather
+               context without bloating your own.
+      plan     read-only + write_board; returns an implementation plan.
 
-    Rails: paths confined to work_dir; run_command DISABLED unless `allow_commands`
-    prefixes are passed (e.g. ["pytest","npm test"]); a hard denylist blocks
-    dangerous patterns regardless.
+    output_schema: JSON Schema the agent's final summary must match — it is
+    parsed/validated server-side, rejections are fed back (bounded retries), and
+    `result` comes back as the parsed object.
+
+    Worker tools (general): read_file (windowed), write_file, edit_file,
+    multi_edit, glob, grep (ripgrep, names-first), list_dir, fetch_url,
+    web_search, download, update_plan, read_board, write_board, list_agents,
+    post_message, read_messages, run_command, done.
+
+    Rails: paths confined to work_dir; run_command DISABLED unless
+    `allow_commands` prefixes are passed (e.g. ["pytest","npm test"]); a hard
+    denylist + chaining rejection apply regardless.
+
+    The full transcript is persisted — continue the agent later with
+    agent_send(work_dir, agent_id, message).
     Returns {result, steps, files_changed, usage, transcript_tail} or {error}.
     """
-    if not workers.API_KEY:
-        return {"error": "OPENROUTER_API_KEY is not set in this server's env."}
-    work = _resolve(work_dir)
-    if not os.path.isdir(work):
-        return {"error": f"work_dir not found: {work}"}
-    return await run_agent_loop(
-        task, work, model, agent_id, allow_commands, max_steps, system
+    work, err = _agent_preflight(work_dir, agent_id)
+    if err:
+        return err
+    return await subagents.run_and_persist(
+        work,
+        task,
+        model,
+        agent_id,
+        allow_commands or [],
+        max_steps,
+        system,
+        agent_type,
+        output_schema,
     )
+
+
+@mcp.tool()
+async def spawn_agent(
+    task: str,
+    work_dir: str,
+    agent_type: str = "general",
+    model: str = "",
+    agent_id: str = "",
+    allow_commands: list = None,
+    max_steps: int = 25,
+    system: str = "",
+    output_schema: dict = None,
+) -> dict:
+    """Spawn a sub-agent in the BACKGROUND and return immediately with its id.
+
+    Same contract as run_agent (presets, schema, rails) but non-blocking: keep
+    working while it runs. Watch progress with monitor(work_dir) (live step
+    heartbeats), steer it mid-run with agent_send, collect the result with
+    agent_result. Spawn several to fan work out in parallel.
+
+    agent_id is auto-generated from agent_type if omitted.
+    """
+    import uuid
+
+    agent_id = agent_id or f"{agent_type}-{uuid.uuid4().hex[:6]}"
+    work, err = _agent_preflight(work_dir, agent_id)
+    if err:
+        return err
+    return subagents.spawn(
+        work,
+        task,
+        model,
+        agent_id,
+        allow_commands or [],
+        max_steps,
+        system,
+        agent_type,
+        output_schema,
+    )
+
+
+@mcp.tool()
+async def agent_result(work_dir: str, agent_id: str, wait_seconds: float = 0) -> dict:
+    """Collect a spawned agent's result. wait_seconds=0 polls (returns
+    {status: running, step, ...} if unfinished); >0 waits up to that long for it
+    to finish. Finished/failed results include everything run_agent would return."""
+    work = _existing(work_dir)
+    if not work:
+        return {"error": f"work_dir not found: {work_dir}"}
+    if not subagents.valid_id(agent_id):
+        return {"error": f"invalid agent_id: {agent_id}"}
+    return await subagents.result(work, agent_id, wait_seconds)
+
+
+@mcp.tool()
+async def agent_send(
+    work_dir: str, agent_id: str, message: str, max_steps: int = 15
+) -> dict:
+    """Continue a sub-agent with a follow-up message, ITS FULL CONTEXT INTACT.
+
+    If the agent is mid-run, the message is delivered into its live loop. If it
+    already finished, its saved transcript is reloaded and the loop resumes with
+    your message appended — same model, same allowlist, same agent_type — and the
+    new result is returned. Use for follow-up questions ("now check X too"),
+    corrections, or iterating on its output without re-explaining everything.
+    """
+    work, err = _agent_preflight(work_dir, agent_id)
+    if err:
+        return err
+    if not (message or "").strip():
+        return {"error": "empty message"}
+    return await subagents.send(work, agent_id, message, max_steps)
 
 
 # ------------------------- director / supervisor -------------------------

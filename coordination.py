@@ -10,6 +10,7 @@ All read-modify-write goes through store.LOCK.
 import json
 import time
 import shlex
+import shutil
 import subprocess
 
 from store import LOCK, coord_file, read_json
@@ -122,6 +123,9 @@ def coord_clear(work: str) -> None:
             f = coord_file(work, name)
             if f.exists():
                 f.unlink()
+        agents_dir = coord_file(work, "agents")
+        if agents_dir.is_dir():
+            shutil.rmtree(agents_dir, ignore_errors=True)
 
 
 # ------------------------- hooks -------------------------

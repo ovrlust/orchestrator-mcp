@@ -18,6 +18,10 @@ from coordination import board_get, board_set, reg_get, reg_update, event
 from sandbox import safe_path, check_command
 from toollog import log_call
 import messages as msgbus
+import presets
+
+# A schema-gated agent gets a few extra steps so rejections can't starve the task.
+MAX_SCHEMA_RETRIES = 2
 
 # How many recent turns to keep verbatim when compacting (the budget itself is
 # auto-derived from the worker model's real context window — see workers.context_budget).
@@ -415,6 +419,26 @@ def _grep_fallback(work, pattern, rel, content, maxr):
     )
 
 
+def _schema_check(text: str, schema: dict):
+    """Validate `text` as JSON against `schema`. Returns (obj, None) or (None, error).
+    Tolerates the ```json fences cheap models love to add."""
+    t = (text or "").strip()
+    t = re.sub(r"^```[a-zA-Z]*\s*\n?|\n?```\s*$", "", t)
+    try:
+        obj = json.loads(t)
+    except Exception as e:  # noqa: BLE001
+        return None, f"not valid JSON: {e}"
+    try:
+        import jsonschema
+
+        jsonschema.validate(obj, schema)
+    except ImportError:
+        return None, "jsonschema not installed on the server"
+    except Exception as e:  # noqa: BLE001 - validation error
+        return None, f"schema mismatch: {getattr(e, 'message', e)}"
+    return obj, None
+
+
 def exec_tool(name, args, work, allow_cmds, changed, agent_id, seen=None):
     seen = seen if seen is not None else set()
     try:
@@ -588,43 +612,64 @@ async def run_agent_loop(
     allow_cmds: list = None,
     max_steps: int = 25,
     system: str = "",
+    agent_type: str = "general",
+    output_schema: dict = None,
+    messages: list = None,
 ) -> dict:
-    """Tool-calling agent loop inside work. See server.run_agent for the contract."""
-    allow_cmds = allow_cmds or []
-    reg_update(work, agent_id, task=task[:120], status="running", kind="agent")
-    event(work, "start", agent_id, task=task[:80])
+    """Tool-calling agent loop inside work. See server.run_agent for the contract.
 
-    sys_prompt = (
-        system
-        or "You are an autonomous coding executor working ALONGSIDE other agents. Use the tools to "
-        "complete the TASK exactly as written. Check read_board and list_agents to see what others "
-        "have done; publish facts others need with write_board. To talk to another agent or the human, "
-        "use post_message (set 'to' for a direct message). Replies and directives from other agents or the "
-        "human are DELIVERED TO YOU AUTOMATICALLY as they arrive — act on them; you can also call read_messages to re-check. "
-        "For multi-step tasks, track a checklist with update_plan and tick items off as you go. "
-        "Read files before editing them (use multi_edit for several changes to one file). Make only the "
-        "changes the task specifies. When finished, call done(summary). Decide and act; do not ask "
-        "questions unless you are blocked, in which case post_message and keep working on what you can."
+    agent_type picks a preset (system prompt + tool subset); output_schema forces
+    done(summary) to be JSON matching the schema (rejections fed back, bounded
+    retries); messages (a saved transcript, last entry a user message) resumes a
+    previous run instead of starting fresh — task is ignored then.
+    """
+    allow_cmds = allow_cmds or []
+    if agent_type not in presets.PRESETS:
+        return {
+            "error": f"unknown agent_type '{agent_type}' (one of {sorted(presets.PRESETS)})"
+        }
+    allowed_tools = presets.tool_names(agent_type)
+    tools = (
+        WORKER_TOOLS
+        if allowed_tools is None
+        else [t for t in WORKER_TOOLS if t["function"]["name"] in allowed_tools]
     )
-    sys_prompt += (
-        f"\n\nwork_dir = {work}\nyour agent_id = {agent_id}\n"
-        f"allowed shell-command prefixes: {allow_cmds or 'NONE (run_command disabled)'}"
+    reg_update(
+        work,
+        agent_id,
+        task=(task or "(resumed)")[:120],
+        status="running",
+        kind=agent_type,
     )
-    peers = {k: v for k, v in reg_get(work).items() if k != agent_id}
-    if peers:
-        roster = ", ".join(f"{k}({v.get('status', '?')})" for k, v in peers.items())
+    event(work, "start", agent_id, task=(task or "(resumed)")[:80])
+
+    if messages is None:
+        sys_prompt = system or presets.system_prompt(agent_type)
+        sys_prompt += presets.REPORT_CONTRACT
         sys_prompt += (
-            f"\n\nOther agents in this work_dir right now: {roster}. "
-            "Call list_agents / read_board to coordinate; publish anything they need with write_board."
+            f"\n\nwork_dir = {work}\nyour agent_id = {agent_id}\n"
+            f"allowed shell-command prefixes: {allow_cmds or 'NONE (run_command disabled)'}"
         )
-    # Project rules (AGENTS.md / CLAUDE.md from work_dir) — same as the harness.
-    rules = load_rules(work)
-    if rules:
-        sys_prompt += f"\n\n## Project rules (follow these)\n{rules}"
-    messages = [
-        {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": task},
-    ]
+        peers = {k: v for k, v in reg_get(work).items() if k != agent_id}
+        if peers:
+            roster = ", ".join(f"{k}({v.get('status', '?')})" for k, v in peers.items())
+            sys_prompt += (
+                f"\n\nOther agents in this work_dir right now: {roster}. "
+                "Call list_agents / read_board to coordinate; publish anything they need with write_board."
+            )
+        # Project rules (AGENTS.md / CLAUDE.md from work_dir) — same as the harness.
+        rules = load_rules(work)
+        if rules:
+            sys_prompt += f"\n\n## Project rules (follow these)\n{rules}"
+        if output_schema:
+            task += (
+                "\n\nYour done(summary) MUST be ONLY a JSON object matching this schema:\n"
+                + json.dumps(output_schema)
+            )
+        messages = [
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": task},
+        ]
     changed = set()
     seen = set()  # files read this session (gates edit_file)
     usage = {"prompt_tokens": 0, "completion_tokens": 0}
@@ -640,10 +685,13 @@ async def run_agent_loop(
             "files_changed": sorted(changed),
             "usage": usage,
             "transcript_tail": tail[-12:],
+            "messages": messages,
         }
 
+    schema_fails = 0
+    total_steps = max_steps + (MAX_SCHEMA_RETRIES if output_schema else 0)
     async with httpx.AsyncClient() as client:
-        for step in range(max_steps):
+        for step in range(total_steps):
             messages, cinfo = await maybe_compact(
                 client,
                 messages,
@@ -689,7 +737,7 @@ async def run_agent_loop(
             body = {
                 "model": model or DEFAULT_MODEL,
                 "messages": messages,
-                "tools": WORKER_TOOLS,
+                "tools": tools,
                 "tool_choice": "auto",
                 "temperature": 0,
             }
@@ -705,6 +753,7 @@ async def run_agent_loop(
                     "steps": step + 1,
                     "usage": usage,
                     "transcript_tail": tail[-12:],
+                    "messages": messages,
                 }
             u = data.get("usage", {})
             usage["prompt_tokens"] += u.get("prompt_tokens", 0)
@@ -719,7 +768,26 @@ async def run_agent_loop(
             messages.append(clean)
             calls = msg.get("tool_calls")
             if not calls:
-                return _finish("done", msg.get("content", ""), step + 1)
+                content = msg.get("content", "")
+                if output_schema:
+                    obj, err = _schema_check(content, output_schema)
+                    if err is None:
+                        return _finish("done", obj, step + 1)
+                    schema_fails += 1
+                    if schema_fails > MAX_SCHEMA_RETRIES:
+                        r = _finish("failed", content, step + 1)
+                        r["error"] = f"output failed schema after {schema_fails} attempts: {err}"
+                        return r
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": f"REJECTED ({err}). Call done(summary) where "
+                            "summary is ONLY a JSON object matching the required schema.",
+                        }
+                    )
+                    tail.append(f"schema reject: {err[:80]}")
+                    continue
+                return _finish("done", content, step + 1)
             for c in calls:
                 fn = c["function"]["name"]
                 try:
@@ -727,8 +795,31 @@ async def run_agent_loop(
                 except Exception:  # noqa: BLE001
                     a = {}
                 if fn == "done":
-                    return _finish("done", a.get("summary", ""), step + 1)
-                res = exec_tool(fn, a, work, allow_cmds, changed, agent_id, seen)
+                    summary = a.get("summary", "")
+                    if output_schema:
+                        obj, err = _schema_check(summary, output_schema)
+                        if err is None:
+                            return _finish("done", obj, step + 1)
+                        schema_fails += 1
+                        if schema_fails > MAX_SCHEMA_RETRIES:
+                            r = _finish("failed", summary, step + 1)
+                            r["error"] = f"output failed schema after {schema_fails} attempts: {err}"
+                            return r
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": c.get("id", ""),
+                                "content": f"REJECTED ({err}). Call done again; summary "
+                                "must be ONLY a JSON object matching the required schema.",
+                            }
+                        )
+                        tail.append(f"schema reject: {err[:80]}")
+                        continue
+                    return _finish("done", summary, step + 1)
+                if allowed_tools is not None and fn not in allowed_tools:
+                    res = f"ERROR: tool {fn} is not available to a '{agent_type}' agent"
+                else:
+                    res = exec_tool(fn, a, work, allow_cmds, changed, agent_id, seen)
                 log_call(
                     work,
                     agent_id,
@@ -750,8 +841,9 @@ async def run_agent_loop(
         event(work, "finish", agent_id, status="incomplete")
         return {
             "result": "(max_steps reached without done)",
-            "steps": max_steps,
+            "steps": total_steps,
             "files_changed": sorted(changed),
             "usage": usage,
             "transcript_tail": tail[-12:],
+            "messages": messages,
         }

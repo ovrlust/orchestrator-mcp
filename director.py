@@ -16,6 +16,7 @@ A section:
   depends_on?  [id,...] run after these; their published results are injected
   allow_commands? per-section shell allowlist (else the run-wide one)
   max_steps?   agent step cap (default 25)
+  agent_type?  preset: general (default) | explore (read-only scout) | plan
   system?      system prompt override
   validate?    optional deterministic gate run AFTER the agent finishes
                ({type: shell|json|regex|nonempty,...}); failing it marks the
@@ -44,7 +45,7 @@ from coordination import (
 from messages import post_message, read_messages
 from validators import validate
 from delegate import awareness_block, preflight
-from agent import run_agent_loop
+from subagents import run_and_persist
 
 
 def _status_of(r: dict) -> str:
@@ -62,14 +63,15 @@ async def run_section(sec: dict, work: str, model: str, allow_commands) -> dict:
     deps = sec.get("depends_on") or []
     try:
         task = awareness_block(work, deps) + sec.get("task", "")
-        r = await run_agent_loop(
-            task,
+        r = await run_and_persist(
             work,
+            task,
             sec.get("model") or model,
             oid,
             sec.get("allow_commands") or allow_commands or [],
             int(sec.get("max_steps", 25)),
             sec.get("system", ""),
+            sec.get("agent_type", "general"),
         )
         status = _status_of(r)
         spec = sec.get("validate")
