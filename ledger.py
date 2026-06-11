@@ -8,6 +8,41 @@ from store import LOCK, read_json
 # (model id, "$in / $out" per 1M tokens, note, in_price, out_price)
 MODELS = [
     (
+        "deepseek-v4-flash-free",
+        "$0 / $0",
+        "FREE via opencode zen — default worker (tool-calling)",
+        0.0,
+        0.0,
+    ),
+    (
+        "deepseek-v4-flash",
+        "(zen pricing)",
+        "fast DeepSeek v4 via opencode zen (tool-calling); usd untracked",
+        0.0,
+        0.0,
+    ),
+    (
+        "deepseek-v4-pro",
+        "(zen pricing)",
+        "strongest DeepSeek v4 via opencode zen (tool-calling); usd untracked",
+        0.0,
+        0.0,
+    ),
+    (
+        "qwen3.6-plus-free",
+        "$0 / $0",
+        "FREE via opencode zen, good structured output",
+        0.0,
+        0.0,
+    ),
+    (
+        "minimax-m3-free",
+        "$0 / $0",
+        "FREE via opencode zen, bulk text",
+        0.0,
+        0.0,
+    ),
+    (
         "openai/gpt-4o-mini",
         "$0.15 / $0.60",
         "cheap reliable general worker (tool-calling)",

@@ -1,0 +1,18 @@
+{
+  "explore-a49ca3": {
+    "task": "(resumed)",
+    "status": "done",
+    "kind": "explore",
+    "step": 3,
+    "last_active": 1781150084.817,
+    "files": []
+  },
+  "schema-test": {
+    "task": "Count the Python files in the project root (not tests/, not hidden dirs) and report.",
+    "status": "done",
+    "kind": "explore",
+    "step": 5,
+    "last_active": 1781150121.736,
+    "files": []
+  }
+}

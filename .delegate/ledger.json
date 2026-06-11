@@ -1,0 +1,110 @@
+[
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 1525,
+    "completion_tokens": 163,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 1894,
+    "completion_tokens": 225,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 4740,
+    "completion_tokens": 479,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 6122,
+    "completion_tokens": 422,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 8092,
+    "completion_tokens": 338,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 9166,
+    "completion_tokens": 255,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 14085,
+    "completion_tokens": 227,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 14776,
+    "completion_tokens": 275,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 15121,
+    "completion_tokens": 794,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 16941,
+    "completion_tokens": 1427,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 16771,
+    "completion_tokens": 133,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 17050,
+    "completion_tokens": 378,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 17462,
+    "completion_tokens": 806,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 1593,
+    "completion_tokens": 160,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 1967,
+    "completion_tokens": 273,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2447,
+    "completion_tokens": 123,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2691,
+    "completion_tokens": 261,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2976,
+    "completion_tokens": 192,
+    "usd": 0.0
+  }
+]

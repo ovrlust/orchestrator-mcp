@@ -38,6 +38,13 @@ RETRY_STATUS = {429, 500, 502, 503, 504}
 # actual window for the model in use — not a fixed number — so a 1M-window model
 # isn't trimmed at the same point as a 32k one.
 CONTEXT_WINDOWS = {
+    # opencode zen ids (conservative floors; compaction just fires earlier if
+    # the real window is larger)
+    "deepseek-v4-flash-free": 128_000,
+    "deepseek-v4-flash": 128_000,
+    "deepseek-v4-pro": 128_000,
+    "qwen3.6-plus-free": 128_000,
+    "minimax-m3-free": 128_000,
     "openai/gpt-4o-mini": 128_000,
     "google/gemini-2.0-flash-001": 1_000_000,
     "deepseek/deepseek-chat": 64_000,
