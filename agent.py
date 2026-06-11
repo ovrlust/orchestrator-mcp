@@ -419,6 +419,24 @@ def _grep_fallback(work, pattern, rel, content, maxr):
     )
 
 
+def _map_digest(work: str) -> str:
+    """Cached architecture digest for a worker's system prompt. Builds the map
+    once if missing (cheap, deterministic, no model calls); empty for
+    non-projects or on any failure — orientation is a bonus, never a hard dep."""
+    try:
+        import project
+
+        if not project.is_project(work):
+            return ""
+        digest = project.overview_text(work)
+        if not digest:
+            project.understand(work)  # first run: build the map, then digest
+            digest = project.overview_text(work)
+        return f"\n\n{digest}" if digest else ""
+    except Exception:  # noqa: BLE001 - never let map building break an agent
+        return ""
+
+
 def _forget_windows(windows, t) -> None:
     """Drop read-window memory for a file the agent just modified, so a
     re-read of the new content isn't flagged as redundant."""
@@ -675,6 +693,10 @@ async def run_agent_loop(
     if messages is None:
         sys_prompt = system or presets.system_prompt(agent_type)
         sys_prompt += presets.REPORT_CONTRACT
+        # Orient the agent for free: inject the cached structural map so it knows
+        # WHERE things live instead of burning steps re-deriving the layout
+        # (measured ~half a scout's steps go to rediscovery without this).
+        sys_prompt += _map_digest(work)
         sys_prompt += (
             f"\n\nwork_dir = {work}\nyour agent_id = {agent_id}\n"
             f"allowed shell-command prefixes: {allow_cmds or 'NONE (run_command disabled)'}"

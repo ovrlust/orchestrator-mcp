@@ -103,6 +103,12 @@ bad prompt degrades gracefully instead of burning a run.
 9. **Heartbeats + monitor** (`coordination.py`). Step and last-active are written
    to the registry each step, so a stalled agent is visible via `monitor` and can
    be steered (`agent_send`) or killed (`agent_stop`).
+10. **Map injection** (`agent.py` → `project.overview_text`). Every agent's system
+    prompt carries the cached structural digest (entrypoints, core modules, roles),
+    built once and free. The model orients instead of burning steps rediscovering
+    the layout. Measured: scouts dropped 3 steps → 2 and *fewer* prompt tokens
+    despite the +1.5k digest — orientation paid for itself by skipping the
+    discovery step.
 
 ## How to drive it (summary)
 

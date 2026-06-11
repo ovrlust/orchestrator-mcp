@@ -44,6 +44,7 @@ import toollog
 import subagents
 from workers import call_model
 from delegate import run_delegate
+from mapfiles import run_map_files
 from director import run_director
 
 mcp = FastMCP("delegate")
@@ -341,6 +342,72 @@ async def delegate_run(
     """
     return await run_delegate(
         orders, work_dir, allow_commands, model, hooks, reset, fallback
+    )
+
+
+@mcp.tool()
+async def map_files(
+    work_dir: str,
+    pattern: str,
+    instruction: str,
+    validate: dict = None,
+    model: str = "",
+    edit: bool = False,
+    exclude: str = "",
+    allow_commands: list = None,
+    max_retries: int = 1,
+    max_files: int = 200,
+    reset: bool = False,
+    fallback: str = "",
+    dry_run: bool = False,
+) -> dict:
+    """Apply ONE instruction to EVERY file matching a glob, fanned out across
+    cheap workers in parallel. The one-call form of the orchestrator's strongest
+    use case: high-volume, fully-specified bulk transforms (add headers, migrate
+    an API, translate strings, reformat, annotate) across a whole codebase.
+
+    Each matched file is read server-side into a worker prompt — so YOUR context
+    is never filled with the files, only the final report comes back. Each file
+    runs read -> worker -> apply -> validate -> retry -> rollback-on-fail, reusing
+    the delegate machinery (concurrency cap, backoff, ledger, atomic rollback).
+
+      pattern       glob relative to work_dir, e.g. "src/**/*.ts", "*.py"
+      instruction   the transform to apply to every file (be fully specific —
+                    workers have no judgment; e.g. "Add `from __future__ import
+                    annotations` as the first line after the module docstring")
+      validate      optional gate applied to every file's result
+                    ({type: nonempty|regex|json|shell, ...}); a file that fails
+                    is rolled back to its original content
+      edit          false (default): the worker returns the COMPLETE new file
+                    (reliable, but the worker re-emits the whole file — costly for
+                    big files). true: the worker returns {old,new} edits applied
+                    surgically (cheaper for large files, but cheap models match
+                    less reliably — validate + rollback protect you)
+      exclude       optional glob to skip (e.g. "**/*_test.py")
+      model         worker model override; fallback   retry model on persistent failure
+      max_retries   per-file retries after first failure (default 1)
+      max_files     safety cap on matches (default 200); the report flags if hit
+      dry_run       true: return the matched file list WITHOUT running — always
+                    preview a broad pattern first
+      reset         wipe board/registry/events before running (ledger kept)
+
+    Returns the delegate report {summary (with matched/truncated), orders, board,
+    registry, events}. summary.applied/failed/skipped tells you what landed.
+    """
+    return await run_map_files(
+        work_dir,
+        pattern,
+        instruction,
+        validate,
+        model,
+        edit,
+        exclude,
+        allow_commands,
+        max_retries,
+        max_files,
+        reset,
+        fallback,
+        dry_run,
     )
 
 

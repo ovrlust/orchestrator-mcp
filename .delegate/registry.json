@@ -78,5 +78,85 @@
     "step": 6,
     "last_active": 1781155806.474,
     "files": []
+  },
+  "s-cache": {
+    "task": "Read ONLY cache.py. In one sentence, what is this module's role? Call done immediately.",
+    "status": "done",
+    "kind": "explore",
+    "step": 3,
+    "last_active": 1781156180.075,
+    "files": []
+  },
+  "s-compaction": {
+    "task": "Read ONLY compaction.py. In one sentence, what is this module's role? Call done immediately.",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781156178.068,
+    "files": []
+  },
+  "s-edits": {
+    "task": "Read ONLY edits.py. In one sentence, what is this module's role? Call done immediately.",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781156177.94,
+    "files": []
+  },
+  "s-ledger": {
+    "task": "Read ONLY ledger.py. In one sentence, what is this module's role? Call done immediately.",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781156178.31,
+    "files": []
+  },
+  "s-sandbox": {
+    "task": "Read ONLY sandbox.py. In one sentence, what is this module's role? Call done immediately.",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781156178.022,
+    "files": []
+  },
+  "s-store": {
+    "task": "Read ONLY store.py. In one sentence, what is this module's role? Call done immediately.",
+    "status": "done",
+    "kind": "explore",
+    "step": 3,
+    "last_active": 1781156179.951,
+    "files": []
+  },
+  "s-toollog": {
+    "task": "Read ONLY toollog.py. In one sentence, what is this module's role? Call done immediately.",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781156177.959,
+    "files": []
+  },
+  "s-validators": {
+    "task": "Read ONLY validators.py. In one sentence, what is this module's role? Call done immediately.",
+    "status": "done",
+    "kind": "explore",
+    "step": 3,
+    "last_active": 1781156180.306,
+    "files": []
+  },
+  "m-cache": {
+    "task": "What is cache.py's role? One sentence.",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781156661.16,
+    "files": []
+  },
+  "m-validators": {
+    "task": "What is validators.py's role? One sentence.",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781156661.099,
+    "files": []
   }
 }

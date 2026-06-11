@@ -18,6 +18,7 @@ modules via `DELEGATE_MCP_PATH`.)
 | `ask_model` | One stateless work order to a worker. `{text, model, usage}` |
 | `ask_model_batch` | Many independent orders, concurrently |
 | `delegate_run` | **The autonomous loop.** A DAG of orders → worker → apply → validate → retry-once → rollback-on-fail → share → report |
+| `map_files` | **Bulk transform.** One instruction applied to every file matching a glob, fanned out across workers (read → transform → validate → rollback-on-fail). `dry_run` previews matches |
 | `run_agent` | A worker as a sandboxed, board-aware tool-calling agent (incl. surgical `edit_file`) inside `work_dir`. `agent_type` presets: `general` / `explore` (read-only scout) / `plan`; `output_schema` forces validated JSON results |
 | `spawn_agent` | Same agent, but in the BACKGROUND — returns an id immediately; fan out several in parallel |
 | `agent_result` | Poll or wait for a spawned agent's result |
@@ -347,6 +348,7 @@ delegate_mcp/
 ├── workers.py         # OpenRouter client + config (concurrency cap, backoff, fallback)
 ├── compaction.py      # run_agent transcript compaction
 ├── delegate.py        # the autonomous DAG loop
+├── mapfiles.py        # bulk transform: glob → per-file worker orders
 ├── agent.py           # the sandboxed tool-calling worker
 ├── presets.py         # agent_type presets: prompts + tool subsets
 ├── subagents.py       # persistence, background spawn, resume

@@ -164,6 +164,29 @@ def test_report_contract_in_system_prompt(tmp_path, monkeypatch):
     assert "REPORT CONTRACT" in bodies[0]["messages"][0]["content"]
 
 
+def test_map_digest_injected_for_project(tmp_path, monkeypatch):
+    # A recognizable project (has a marker) gets the cached overview injected.
+    (tmp_path / "requirements.txt").write_text("httpx\n")
+    (tmp_path / "main.py").write_text("import util\n")
+    (tmp_path / "util.py").write_text("def f():\n    return 1\n")
+    bodies = []
+    monkeypatch.setattr(
+        agent, "chat_resilient", scripted([_tc("done", {"summary": "ok"})], bodies)
+    )
+    run(agent.run_agent_loop("t", str(tmp_path), agent_type="explore"))
+    sysmsg = bodies[0]["messages"][0]["content"]
+    assert "Codebase overview" in sysmsg  # auto-built and injected
+
+
+def test_map_digest_absent_for_non_project(tmp_path, monkeypatch):
+    bodies = []
+    monkeypatch.setattr(
+        agent, "chat_resilient", scripted([_tc("done", {"summary": "ok"})], bodies)
+    )
+    run(agent.run_agent_loop("t", str(tmp_path), agent_type="explore"))
+    assert "Codebase overview" not in bodies[0]["messages"][0]["content"]
+
+
 # ------------------------- output schema -------------------------
 
 SCHEMA = {"type": "object", "required": ["answer"], "properties": {"answer": {}}}
