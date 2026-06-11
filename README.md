@@ -7,42 +7,9 @@ Claude (smart, expensive) **plans and validates**. A cheap external model (the
 push high-volume, fully-specifiable grind onto the cheap model while Claude keeps
 the judgment — and to do it without Claude babysitting every unit.
 
-## Two ways to use it
-
-1. **Standalone harness** (browser frontend → HTTP backend). The backend has its
-   own LLM **orchestrator** (a strong, configurable model) that plans, edits,
-   searches, and delegates to cheap workers — streaming everything to the browser
-   over SSE. This is the "full harness like opencode" mode.
-2. **MCP server** (`server.py`) — the same capabilities as tools for an external
-   Claude to drive. Bonus interface; unchanged.
-
-### Harness backend
-
-```bash
-.venv/bin/pip install -r requirements.txt
-.venv/bin/python -m backend          # serves http://127.0.0.1:8787
-```
-
-REST + SSE; the full API the frontend targets is in **[CONTRACT.md](CONTRACT.md)**.
-In short:
-
-- `POST /api/sessions {cwd, provider?, model?}` — start a conversation bound to a
-  dir, with a per-session orchestrator brain (`openrouter` or `anthropic`).
-- `POST /api/sessions/{id}/message {text}` — a user turn; the orchestrator streams
-  tokens / tool-calls / results / worker+board+chat activity over
-  `GET /api/sessions/{id}/stream` (SSE, resumable via `Last-Event-ID`).
-- `POST .../interrupt`, `POST .../approve`, `POST .../messages` (human↔agent), and
-  REST snapshots for `/board` `/agents` `/messages` `/spend`.
-- **Slash commands** (`/compact`, `/clear`, `/model`, `/mode`, `/cost`, `/help`,
-  `/title`) — harness-side, not the LLM. A `/`-prefixed message is run as a
-  command; also `POST /command` and `GET /api/commands`. `/mode solo` turns off
-  worker dispatch (a plain single-agent harness); `/mode delegate` turns it back on.
-
-Backend layout: `backend/providers.py` (normalized streaming over OpenRouter +
-Anthropic), `session.py` (persistence + event pub/sub), `tools.py` (orchestrator
-toolset = worker tools + `delegate` + `spawn_agent`, filtered by mode),
-`commands.py` (slash commands), `orchestrator.py` (the streaming tool-loop brain),
-`app.py` (FastAPI REST + SSE).
+(The standalone browser harness that used to live in `backend/` is now its own
+project: [delegate-harness](../delegate-harness). It imports this project's
+modules via `DELEGATE_MCP_PATH`.)
 
 ## Tools
 
