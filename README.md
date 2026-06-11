@@ -308,6 +308,8 @@ delegate_mcp/
 ├── compaction.py      # run_agent transcript compaction
 ├── delegate.py        # the autonomous DAG loop
 ├── agent.py           # the sandboxed tool-calling worker
+├── presets.py         # agent_type presets: prompts + tool subsets
+├── subagents.py       # persistence, background spawn, resume
 ├── viewer.py          # stdlib localhost viewer + human<->agent message feed
 ├── requirements.txt
 ├── .env.example
