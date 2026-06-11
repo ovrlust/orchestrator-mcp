@@ -1,0 +1,107 @@
+# DeepSeek worker behavior
+
+How the default worker model (`deepseek-v4-flash-free` via opencode zen) actually
+behaves inside the delegate agent loop, what it's good and bad at, and the
+mechanisms — beyond prompting — that keep it from drifting.
+
+All numbers below are from real runs against the live endpoint in this repo, not
+estimates. Re-measure if the model or endpoint changes.
+
+## One-line profile
+
+**Strong reasoner, weak agentic-loop driver.** It reasons well about code in a
+single shot, but left to run a multi-step tool loop on a loose task it
+over-explores and forgets to finish. The orchestrator's job is to supply the
+discipline the model lacks: scope, a convergence signal, and a result shape.
+
+## What it's good at
+
+- **Single-shot code reasoning.** Given a bug description it identified the cause
+  and the fix correctly in two sentences. Given "find where X is defined, list
+  the tool calls" it produced the minimal, correct sequence.
+- **Line-accurate tracing when scoped.** Asked to trace the message lifecycle
+  with the files named, it returned `_last_seq`, push-delivery line range, and
+  the dual cursor location — all correct to the line.
+- **Structured output.** With `output_schema` it returns valid JSON; it also
+  tolerates ```json fences (the loop strips them). Schema-forcing is the single
+  most reliable way to make it stop and answer.
+- **Clean give-up.** Told "if it doesn't exist, say so and call done
+  immediately," it did — 2 steps, ~3.4k tokens. It does not loop forever on an
+  impossible task *when the task says how to bail*.
+
+## What it's bad at
+
+- **Converging on its own.** This is the main failure. A loose task —
+  "trace the message lifecycle" with no file scope — ran **15 steps / 182k
+  prompt tokens and never called `done()`**, returning the empty
+  "(max_steps reached)" sentinel. It completed its own `update_plan` checklist
+  (6/6) and *still* didn't recognize "plan done → finish." It keeps gathering
+  for completeness.
+- **Scope control.** Unbounded, it reads adjacent/irrelevant files "to be
+  thorough" (in the 182k run it read `viewer.py`, `director.py`, and grepped
+  `@mcp.tool` — none relevant to a message trace).
+- **Reasoning-token burn.** It is a reasoning model: a 2-sentence answer cost
+  **7067 reasoning tokens**. Free tier → $0, irrelevant; on a paid tier this is
+  real cost. Prefer it for reasoning-worthy work, not trivial mechanical calls.
+- **Literal/positional instructions.** Asked for "the third word of this
+  sentence" it answered `word` (actual: `valid`). Don't rely on it for exact
+  counting, indexing, or character-level precision.
+- **Ignoring a restricted toolset.** On the forced final step, offered only the
+  `done` tool, it still emitted a different tool call. Models hallucinate
+  un-offered tools — so convergence can't rely on tool restriction alone (see
+  the hard fallback below).
+
+## The measured prompt effect
+
+Same question ("trace a message's lifecycle"), same model, same step cap:
+
+| Prompt style | Steps | Prompt tokens | Converged? | Answer |
+|---|---|---|---|---|
+| Loose ("trace the lifecycle") | 15 | 182,404 | no | lost |
+| Hardened preset, still loose task | 12 | 119,912 | yes | correct |
+| Tight (named files + `output_schema`) | 8 | 38,299 | yes | line-accurate |
+
+The hardened `explore`/`plan` presets buy convergence (no more infinite wander).
+Token economy on top of that is driven by the *orchestrator's task prompt* —
+naming files and forcing a schema is what takes 120k → 38k.
+
+## Anti-drift mechanisms (code, not prompt)
+
+Prompting is the first lever; these are the structural backstops in the loop so a
+bad prompt degrades gracefully instead of burning a run.
+
+1. **Read-only preset enforcement** (`presets.py`, `agent.py`). `explore`/`plan`
+   agents are offered only read tools AND a dispatch-time check rejects any
+   write/exec call the model emits anyway. The model *cannot* edit under these
+   types even if it tries.
+2. **Forced convergence on the last step** (`agent.py`). On the final allowed
+   step the loop offers only `done` and injects a "FINAL STEP — call done now"
+   message.
+3. **Hard finish fallback** (`agent.py`). Because the model may ignore (2), if it
+   still hasn't finished after the last step the loop makes ONE no-tools call
+   ("reply with your final answer as plain text") and returns that as an
+   `incomplete` result. A starved run that used to return the empty
+   "(max_steps reached)" sentinel now returns a real best-effort answer
+   (verified: a 4-step architecture summary instead of nothing).
+4. **Output-schema gate** (`agent.py`). With `output_schema`, `done` must be JSON
+   matching the schema; rejections are fed back with bounded retries, and the
+   final answer-extraction also re-validates. Forces a typed object out.
+5. **Per-step checkpointing** (`subagents.py`). The transcript is saved every
+   step, so a crash or `agent_stop` mid-run is resumable from the last step
+   rather than lost.
+6. **Context compaction** (`compaction.py`). Older turns are summarized when the
+   transcript nears the model's window, so a long loop doesn't overflow.
+7. **Heartbeats + monitor** (`coordination.py`). Step and last-active are written
+   to the registry each step, so a stalled agent is visible via `monitor` and can
+   be steered (`agent_send`) or killed (`agent_stop`).
+
+## How to drive it (summary)
+
+- The cheap model **reads**; the orchestrator **navigates**. Push bounded
+  reading/grind down; keep judgment and live-conversation context up top.
+- **Scope the reads** — name the files. **Demand convergence** — "call done the
+  moment you can answer." **Force the shape** — pass `output_schema`.
+- Delegate only when output ≪ input AND the task is bounded. If you can't name
+  the files or the success check, scope it first; don't hand it down loose.
+
+(Full playbook with the tool-by-task-shape table: README → "Driving sub-agents".)

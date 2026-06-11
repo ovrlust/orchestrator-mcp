@@ -741,10 +741,31 @@ async def run_agent_loop(
                     tail.append(f"recv {len(inbound)} msg(s)")
                     event(work, "messages_delivered", agent_id, count=len(inbound))
 
+            # Forced convergence: on the final normal step, drop every tool but
+            # `done` and tell the agent so. A strong-reasoner/weak-loop-driver
+            # model (see docs/deepseek-behavior.md) otherwise keeps gathering
+            # past the budget and returns "(max_steps reached)" with no answer;
+            # this converts that into a real best-effort answer.
+            last_step = step == max_steps - 1
+            if last_step:
+                step_tools = [
+                    t for t in tools if t["function"]["name"] == "done"
+                ] or tools
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "FINAL STEP — no more tool calls are available. "
+                        "Call done() now with your best answer from what you have "
+                        "already gathered.",
+                    }
+                )
+            else:
+                step_tools = tools
+
             body = {
                 "model": model or DEFAULT_MODEL,
                 "messages": messages,
-                "tools": tools,
+                "tools": step_tools,
                 "tool_choice": "auto",
                 "temperature": 0,
             }
@@ -844,6 +865,45 @@ async def run_agent_loop(
                         "content": str(res)[:6000],
                     }
                 )
+            # Last step and the agent kept tool-calling instead of finishing
+            # (some models ignore a done-only toolset). Don't burn the run for
+            # nothing — make ONE final no-tools call to extract its answer.
+            if last_step:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "STOP. You are out of tool calls. Reply with your "
+                        "final answer to the original task as plain text"
+                        + (
+                            " — ONLY a JSON object matching the required schema."
+                            if output_schema
+                            else "."
+                        ),
+                    }
+                )
+                try:
+                    async with SEM:
+                        final = await chat_resilient(
+                            client,
+                            {
+                                "model": model or DEFAULT_MODEL,
+                                "messages": messages,
+                                "temperature": 0,
+                            },
+                        )
+                    record_spend(work, model or DEFAULT_MODEL, final.get("usage", {}))
+                    text = final["choices"][0]["message"].get("content", "") or ""
+                except Exception:  # noqa: BLE001 - fall through to incomplete
+                    text = ""
+                if output_schema:
+                    obj, err = _schema_check(text, output_schema)
+                    if err is None:
+                        return _finish("done", obj, total_steps)
+                    r = _finish("incomplete", text or "(no answer)", total_steps)
+                    r["error"] = f"ran out of steps; final answer failed schema: {err}"
+                    return r
+                if text.strip():
+                    return _finish("incomplete", text, total_steps)
         reg_update(work, agent_id, status="incomplete", files=sorted(changed))
         event(work, "finish", agent_id, status="incomplete")
         return {

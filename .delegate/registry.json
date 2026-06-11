@@ -38,5 +38,37 @@
     "step": 12,
     "last_active": 1781154794.784,
     "files": []
+  },
+  "p-imposs": {
+    "task": "Find the function `quantum_flux_capacitor` and report its signature. If it does not exist, say so and call done immediat",
+    "status": "done",
+    "kind": "explore",
+    "step": 2,
+    "last_active": 1781155217.223,
+    "files": []
+  },
+  "p-bound": {
+    "task": "Read ONLY workers.py. What is DEFAULT_MODEL's default value? Call done immediately.",
+    "status": "done",
+    "kind": "explore",
+    "step": 3,
+    "last_active": 1781155222.593,
+    "files": []
+  },
+  "forcetest": {
+    "task": "Summarize the entire architecture of this project: every module and its role.",
+    "status": "incomplete",
+    "kind": "explore",
+    "step": 4,
+    "last_active": 1781155284.053,
+    "files": []
+  },
+  "forcetest2": {
+    "task": "Summarize the entire architecture of this project: every module and its role.",
+    "status": "incomplete",
+    "kind": "explore",
+    "step": 4,
+    "last_active": 1781155359.803,
+    "files": []
   }
 }
