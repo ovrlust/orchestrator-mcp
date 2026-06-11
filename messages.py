@@ -15,12 +15,27 @@ from store import LOCK, coord_file
 from coordination import event
 
 
+def _last_seq(p) -> int:
+    """Highest seq already in the file (0 if none). Counting lines would drift
+    on a corrupt/partial line and break every read-since cursor."""
+    if not p.exists():
+        return 0
+    last = 0
+    for ln in p.read_text(encoding="utf-8").splitlines():
+        if ln.strip():
+            try:
+                last = max(last, int(json.loads(ln).get("seq", 0)))
+            except Exception:  # noqa: BLE001 - skip torn lines
+                pass
+    return last
+
+
 def post_message(work: str, frm: str, text: str, to: str = "") -> int:
     """Append a message (to='' = broadcast to everyone). Returns its seq number."""
     p = coord_file(work, "messages.jsonl")
     with LOCK:
         p.parent.mkdir(parents=True, exist_ok=True)
-        seq = (sum(1 for _ in p.open(encoding="utf-8")) if p.exists() else 0) + 1
+        seq = _last_seq(p) + 1
         rec = {
             "seq": seq,
             "ts": round(time.time(), 3),

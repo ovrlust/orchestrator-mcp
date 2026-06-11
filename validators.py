@@ -4,7 +4,7 @@ import re
 import json
 import subprocess
 
-from sandbox import DENY
+from sandbox import check_command
 
 REFUSALS = (
     "i cannot",
@@ -75,13 +75,9 @@ def validate(spec: dict, text: str, abspath, work: str, allow_cmds: list) -> dic
         cmd = spec.get("cmd", "").strip()
         if not cmd:
             return {"ok": False, "error": "shell validator has no cmd"}
-        if DENY.search(cmd):
-            return {"ok": False, "error": f"validator cmd denied (dangerous): {cmd}"}
-        if not any(cmd.startswith(a) for a in allow_cmds):
-            return {
-                "ok": False,
-                "error": f"validator cmd not in allow_commands {allow_cmds}: {cmd}",
-            }
+        denied = check_command(cmd, allow_cmds)
+        if denied:
+            return {"ok": False, "error": f"validator cmd denied ({denied})"}
         try:
             r = subprocess.run(
                 cmd, shell=True, cwd=work, capture_output=True, text=True, timeout=300

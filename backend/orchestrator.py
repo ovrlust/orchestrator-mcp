@@ -16,7 +16,9 @@ import messages as msgbus  # noqa: E402
 from . import providers, tools, session as sessions
 
 MAX_ITERS = int(os.environ.get("HARNESS_MAX_ITERS", "50"))
-AUTO_APPROVE = os.environ.get("HARNESS_AUTO_APPROVE", "1") != "0"
+# Secure default: command/delegate calls wait for /approve. Set
+# HARNESS_AUTO_APPROVE=1 to run unattended.
+AUTO_APPROVE = os.environ.get("HARNESS_AUTO_APPROVE", "0") == "1"
 APPROVAL_TIMEOUT = float(os.environ.get("HARNESS_APPROVAL_TIMEOUT", "300"))
 NEEDS_APPROVAL = {"run_command", "delegate", "spawn_agent"}
 
@@ -131,7 +133,7 @@ async def run_turn(session, user_text: str):
     emit = lambda **e: sessions.append_event(sid, e)  # noqa: E731
     ctx = {
         "work": session.cwd,
-        "allow_cmds": [],
+        "allow_cmds": list(getattr(session, "allow_commands", []) or []),
         "seen": set(),
         "changed": set(),
         "model": "",

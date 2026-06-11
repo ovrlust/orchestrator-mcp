@@ -22,6 +22,15 @@ Env:
 
 import pathlib
 
+try:  # README's documented setup is `cp .env.example .env` — honor it.
+    from dotenv import load_dotenv
+
+    load_dotenv(pathlib.Path(__file__).resolve().parent / ".env")
+except ImportError:
+    pass
+
+import os
+
 import httpx
 from mcp.server.fastmcp import FastMCP
 
@@ -44,7 +53,22 @@ def _resolve(work_dir: str) -> str:
     return str(pathlib.Path(work_dir).expanduser().resolve())
 
 
+def _existing(work_dir: str) -> str | None:
+    """Resolve work_dir only if it exists — a typo'd path must error, not
+    silently grow a .delegate/ state dir somewhere random."""
+    work = _resolve(work_dir)
+    return work if os.path.isdir(work) else None
+
+
 # ------------------------- text workers -------------------------
+
+
+def _maybe_record(work_dir: str, r: dict) -> None:
+    """Log a call's spend to the work_dir ledger when one was given."""
+    if work_dir and isinstance(r, dict) and "error" not in r:
+        work = _existing(work_dir)
+        if work:
+            ledger.record_spend(work, r.get("model", "?"), r.get("usage", {}))
 
 
 @mcp.tool()
@@ -54,16 +78,27 @@ async def ask_model(
     system: str = "",
     temperature: float = 0.0,
     max_tokens: int = 0,
+    work_dir: str = "",
 ) -> dict:
-    """Run ONE fully-specified, stateless work order (no tools). Returns {text, model, usage} or {error}."""
+    """Run ONE fully-specified, stateless work order (no tools). Returns {text, model, usage} or {error}.
+    Pass work_dir to log the call's cost to that project's spend ledger."""
     async with httpx.AsyncClient() as client:
-        return await call_model(client, prompt, model, system, temperature, max_tokens)
+        r = await call_model(client, prompt, model, system, temperature, max_tokens)
+    _maybe_record(work_dir, r)
+    return r
 
 
 @mcp.tool()
-async def ask_model_batch(orders: list[dict]) -> list:
-    """Run MANY independent stateless orders concurrently. Each: {prompt, model?, system?, temperature?, max_tokens?}."""
+async def ask_model_batch(orders: list[dict], work_dir: str = "") -> list:
+    """Run MANY independent stateless orders concurrently. Each: {prompt, model?, system?, temperature?, max_tokens?}.
+    Pass work_dir to log each call's cost to that project's spend ledger."""
     import asyncio
+
+    if not isinstance(orders, list) or not orders:
+        return [{"error": "orders must be a non-empty list"}]
+    bad = [i for i, o in enumerate(orders) if not isinstance(o, dict)]
+    if bad:
+        return [{"error": f"orders at index {bad} are not objects"}]
 
     async with httpx.AsyncClient() as client:
         tasks = [
@@ -72,12 +107,15 @@ async def ask_model_batch(orders: list[dict]) -> list:
                 o.get("prompt", ""),
                 o.get("model", ""),
                 o.get("system", ""),
-                float(o.get("temperature", 0.0)),
-                int(o.get("max_tokens", 0)),
+                float(o.get("temperature", 0.0) or 0.0),
+                int(o.get("max_tokens", 0) or 0),
             )
             for o in orders
         ]
-        return await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
+    for r in results:
+        _maybe_record(work_dir, r)
+    return results
 
 
 @mcp.tool()
@@ -129,7 +167,10 @@ def list_models() -> str:
 @mcp.tool()
 def get_spend(work_dir: str) -> dict:
     """Total worker spend logged for a work_dir (tokens + USD, broken down by model)."""
-    return ledger.spend_summary(_resolve(work_dir))
+    work = _existing(work_dir)
+    if not work:
+        return {"error": f"work_dir not found: {work_dir}"}
+    return ledger.spend_summary(work)
 
 
 @mcp.tool()
@@ -157,7 +198,10 @@ def board_read(work_dir: str, key: str = "") -> dict:
 @mcp.tool()
 def board_write(work_dir: str, key: str, value: str) -> dict:
     """Publish a value to the shared blackboard (seed context before a run, or record a decision)."""
-    coord.board_set(_resolve(work_dir), key, value, agent="orchestrator")
+    work = _existing(work_dir)
+    if not work:
+        return {"error": f"work_dir not found: {work_dir}"}
+    coord.board_set(work, key, value, agent="orchestrator")
     return {"ok": True, "key": key}
 
 
@@ -213,7 +257,10 @@ def tool_log(
 @mcp.tool()
 def coord_reset(work_dir: str) -> dict:
     """Wipe board, registry, events, and messages for a fresh coordinated run (ledger kept)."""
-    coord.coord_clear(_resolve(work_dir))
+    work = _existing(work_dir)
+    if not work:
+        return {"error": f"work_dir not found: {work_dir}"}
+    coord.coord_clear(work)
     return {"ok": True}
 
 
@@ -226,7 +273,10 @@ def send_message(
     Use this to steer a running agent, answer its question, or hand it new context.
     Agents pick it up via their read_messages tool.
     """
-    seq = msgbus.post_message(_resolve(work_dir), frm, text, to)
+    work = _existing(work_dir)
+    if not work:
+        return {"error": f"work_dir not found: {work_dir}"}
+    seq = msgbus.post_message(work, frm, text, to)
     return {"ok": True, "seq": seq}
 
 
@@ -323,8 +373,6 @@ async def run_agent(
     """
     if not workers.API_KEY:
         return {"error": "OPENROUTER_API_KEY is not set in this server's env."}
-    import os
-
     work = _resolve(work_dir)
     if not os.path.isdir(work):
         return {"error": f"work_dir not found: {work}"}

@@ -75,6 +75,14 @@ def toolset(mode: str) -> list:
     return list(_WORKER) if mode == "solo" else ORCH_TOOLS
 
 
+def _narrow_allow(requested, server_allow: list) -> list:
+    """The model may narrow the session allowlist for its workers, never widen
+    it — otherwise `allow_commands` in a tool call grants arbitrary shell."""
+    if not requested:
+        return server_allow
+    return [c for c in requested if c in server_allow]
+
+
 async def dispatch(name: str, args: dict, ctx: dict) -> str:
     """Run one orchestrator tool call. ctx: {work, allow_cmds, seen, changed, model}."""
     work = ctx["work"]
@@ -94,7 +102,7 @@ async def dispatch(name: str, args: dict, ctx: dict) -> str:
         res = await delegate_mod.run_delegate(
             args.get("orders", []),
             work,
-            args.get("allow_commands") or allow,
+            _narrow_allow(args.get("allow_commands"), allow),
             args.get("model") or ctx.get("model", ""),
             None,
             False,
@@ -107,7 +115,7 @@ async def dispatch(name: str, args: dict, ctx: dict) -> str:
             work,
             args.get("model") or ctx.get("model", ""),
             args.get("agent_id") or "agent",
-            args.get("allow_commands") or allow,
+            _narrow_allow(args.get("allow_commands"), allow),
             int(args.get("max_steps", 25)),
             "",
         )

@@ -26,6 +26,10 @@ OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 
+# A hung upstream socket must not stall a turn forever — /interrupt only takes
+# effect between received events. read= is the per-chunk gap, not the whole stream.
+STREAM_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
+
 
 def _key(name):
     return os.environ.get(name, "")
@@ -172,7 +176,7 @@ async def _openrouter_stream(
     if max_tokens:
         body["max_tokens"] = max_tokens
     acc, stop = {}, None
-    async with httpx.AsyncClient(timeout=None) as client:
+    async with httpx.AsyncClient(timeout=STREAM_TIMEOUT) as client:
         async with client.stream(
             "POST", OPENROUTER_URL, json=body, headers=headers
         ) as r:
@@ -259,7 +263,7 @@ async def _anthropic_stream(
     if tools:
         body["tools"] = tools_to_anthropic(tools)
     blocks, stop, usage = {}, None, {}
-    async with httpx.AsyncClient(timeout=None) as client:
+    async with httpx.AsyncClient(timeout=STREAM_TIMEOUT) as client:
         async with client.stream(
             "POST", ANTHROPIC_URL, json=body, headers=headers
         ) as r:
@@ -325,7 +329,7 @@ async def _anthropic_stream(
 PROVIDERS = {"openrouter": _openrouter_stream, "anthropic": _anthropic_stream}
 DEFAULT_PROVIDER = "openrouter"
 DEFAULT_MODELS = {
-    "openrouter": "anthropic/claude-3.5-sonnet",
+    "openrouter": "anthropic/claude-sonnet-4.6",
     "anthropic": "claude-sonnet-4-6",
 }
 

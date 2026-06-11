@@ -21,6 +21,9 @@ from store import LOCK, coord_file
 # Keep lines bounded — this is a log, not a data store.
 ARGS_MAX = 400
 RESULT_MAX = 600
+# Rotate at this size so long runs don't make every append/tail re-read a
+# monster file under the global LOCK. One previous generation is kept (.1).
+ROTATE_BYTES = 5_000_000
 
 
 def _trunc(v, n: int) -> str:
@@ -43,6 +46,8 @@ def log_call(work, agent_id, step, fn, args, result, ok=True) -> None:
         p = coord_file(work, "toolcalls.jsonl")
         with LOCK:
             p.parent.mkdir(parents=True, exist_ok=True)
+            if p.exists() and p.stat().st_size > ROTATE_BYTES:
+                p.replace(p.with_suffix(".jsonl.1"))
             with open(p, "a", encoding="utf-8") as f:
                 f.write(json.dumps(rec, default=str) + "\n")
     except Exception:  # noqa: BLE001 - logging must never break a run

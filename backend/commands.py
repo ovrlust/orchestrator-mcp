@@ -112,7 +112,8 @@ def cmd_model(session, args):
     if len(args) >= 2 and args[0] in providers.PROVIDERS:
         session.provider, session.model = args[0], args[1]
     elif args[0] in providers.PROVIDERS:
-        session.provider = args[0]
+        # Model ids are provider-specific; keeping the old one would 404.
+        session.provider, session.model = args[0], ""
     else:
         session.model = args[0]
     sessions.save(session)

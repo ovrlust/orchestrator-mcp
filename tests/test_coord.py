@@ -95,12 +95,13 @@ def test_hook_runs_when_allowed(tmp_path):
     assert "exit=0" in out
 
 
-def test_hook_skipped_when_not_allowed(tmp_path):
+def test_hook_denied_when_not_allowed(tmp_path):
     w = str(tmp_path)
     out = coord.run_hook(
         w, {"on_finish": "echo hi"}, "on_finish", {"id": "a1"}, allow_cmds=[]
     )
-    assert "skipped" in out
+    assert "denied" in out
+    assert "allow_commands" in out
 
 
 def test_hook_denied_dangerous(tmp_path):

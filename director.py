@@ -157,17 +157,21 @@ async def _supervisor_decide(client, snap: dict, model: str) -> dict:
 async def _supervised_wave(
     client, ready_pairs, work, supervisor_model, max_polls, poll_interval
 ):
-    """Run a wave of (id, coro) under a polling supervisor. Returns (results, log)."""
+    """Run a wave of (id, coro) under a polling supervisor.
+    Returns (results, log, stopped)."""
     tasks = {oid: asyncio.create_task(coro) for oid, coro in ready_pairs}
     log = []
     polls = 0
+    stopped = False
     while polls < max_polls:
         decision = await _supervisor_decide(client, _snapshot(work), supervisor_model)
         log.append(decision)
-        for m in decision.get("messages", []):
-            if m.get("text"):
+        msgs = decision.get("messages") or []
+        for m in msgs if isinstance(msgs, list) else []:
+            if isinstance(m, dict) and m.get("text"):
                 post_message(work, "supervisor", m["text"], m.get("to", "") or "")
         if decision.get("stop"):
+            stopped = True
             for t in tasks.values():
                 t.cancel()
             break
@@ -185,7 +189,7 @@ async def _supervised_wave(
             )
         else:
             results.append(r)
-    return results, log
+    return results, log, stopped
 
 
 async def run_director(
@@ -240,6 +244,8 @@ async def run_director(
                 event(work, "skip", oid, failed_deps=bad)
                 pending.discard(oid)
             if not ready:
+                if skip:
+                    continue  # skips may unblock transitive skips next pass
                 if pending:  # nothing runnable, nothing skipped -> cycle/missing dep
                     for oid in list(pending):
                         results[oid] = {
@@ -258,7 +264,7 @@ async def run_director(
                 for oid in ready
             ]
             if supervise:
-                batch, log = await _supervised_wave(
+                batch, log, stopped = await _supervised_wave(
                     client,
                     pairs,
                     work,
@@ -269,9 +275,22 @@ async def run_director(
                 sup_log += log
             else:
                 batch = await asyncio.gather(*[c for _, c in pairs])
+                stopped = False
             for r in batch:
                 results[r["id"]] = r
                 pending.discard(r["id"])
+            if stopped:
+                # Supervisor said stop: don't dispatch the remaining waves.
+                for oid in list(pending):
+                    results[oid] = {
+                        "id": oid,
+                        "status": "skipped",
+                        "reason": "stopped by supervisor",
+                    }
+                    reg_update(work, oid, status="skipped", error="supervisor stop")
+                    event(work, "skip", oid, reason="supervisor_stop")
+                    pending.discard(oid)
+                break
 
     ordered = [results[s["id"]] for s in sections]
     done = [r for r in ordered if r["status"] == "done"]

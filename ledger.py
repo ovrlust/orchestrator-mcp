@@ -64,7 +64,13 @@ def record_spend(work: str, model: str, usage: dict) -> float:
     p = ledger_path(work)
     with LOCK:
         p.parent.mkdir(parents=True, exist_ok=True)
-        led = read_json(p, [])
+        led = read_json(p, None)
+        if led is None and p.exists():
+            # Corrupt ledger: preserve it for inspection instead of silently
+            # overwriting the whole spend history with one fresh entry.
+            p.rename(p.with_suffix(".json.corrupt"))
+        if not isinstance(led, list):
+            led = []
         led.append(
             {
                 "model": model,

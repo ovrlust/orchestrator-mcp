@@ -4,3 +4,8 @@ jsonschema>=4.0
 fastapi>=0.110
 uvicorn[standard]>=0.29
 sse-starlette>=2.0
+python-dotenv>=1.0
+
+# dev/test
+pytest>=8.0
+pytest-timeout>=2.3

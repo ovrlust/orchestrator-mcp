@@ -13,7 +13,7 @@ import shlex
 import subprocess
 
 from store import LOCK, coord_file, read_json
-from sandbox import DENY
+from sandbox import check_command
 
 
 # ------------------------- blackboard -------------------------
@@ -117,6 +117,7 @@ def coord_clear(work: str) -> None:
             "events.jsonl",
             "messages.jsonl",
             "toolcalls.jsonl",
+            "toolcalls.jsonl.1",
         ):
             f = coord_file(work, name)
             if f.exists():
@@ -141,12 +142,10 @@ def run_hook(work: str, hooks: dict, name: str, ctx: dict, allow_cmds: list):
     for k, v in ctx.items():
         cmd = cmd.replace("{" + k + "}", shlex.quote(str(v if v is not None else "")))
     aid = ctx.get("id", "?")
-    if DENY.search(cmd):
-        event(work, "hook_denied", aid, hook=name, cmd=cmd[:200])
-        return f"denied (dangerous): {cmd}"
-    if not any(cmd.startswith(a) for a in (allow_cmds or [])):
-        event(work, "hook_skipped", aid, hook=name)
-        return f"skipped (not in allow_commands): {cmd}"
+    denied = check_command(cmd, allow_cmds or [])
+    if denied:
+        event(work, "hook_denied", aid, hook=name, reason=denied[:200])
+        return f"denied ({denied})"
     try:
         r = subprocess.run(
             cmd, shell=True, cwd=work, capture_output=True, text=True, timeout=120

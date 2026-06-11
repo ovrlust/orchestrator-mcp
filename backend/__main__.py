@@ -1,7 +1,16 @@
 """Run the harness backend:  python -m backend   (from the delegate_mcp dir)."""
 
 import os
+import pathlib
+
 import uvicorn
+
+try:  # honor the documented `cp .env.example .env` setup
+    from dotenv import load_dotenv
+
+    load_dotenv(pathlib.Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass
 
 
 def main():

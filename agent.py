@@ -15,7 +15,7 @@ from workers import context_budget
 from compaction import maybe_compact
 from ledger import record_spend
 from coordination import board_get, board_set, reg_get, reg_update, event
-from sandbox import safe_path, DENY
+from sandbox import safe_path, check_command
 from toollog import log_call
 import messages as msgbus
 
@@ -568,10 +568,9 @@ def exec_tool(name, args, work, allow_cmds, changed, agent_id, seen=None):
             return "(no new messages)"
         if name == "run_command":
             cmd = args["cmd"].strip()
-            if DENY.search(cmd):
-                return f"DENIED (dangerous pattern): {cmd}"
-            if not any(cmd.startswith(a) for a in allow_cmds):
-                return f"DENIED (not in allow_commands {allow_cmds}): {cmd}"
+            denied = check_command(cmd, allow_cmds)
+            if denied:
+                return f"DENIED ({denied})"
             r = subprocess.run(
                 cmd, shell=True, cwd=work, capture_output=True, text=True, timeout=300
             )
@@ -669,6 +668,9 @@ async def run_agent_loop(
             inbox = msgbus.read_messages(work, agent_id, since=msg_cursor)
             if inbox:
                 msg_cursor = max(m.get("seq", msg_cursor) for m in inbox)
+                # Keep the registry cursor in sync so a later read_messages tool
+                # call doesn't re-deliver what push delivery already showed.
+                reg_update(work, agent_id, msg_cursor=msg_cursor)
                 inbound = [m for m in inbox if m.get("from") != agent_id]
                 if inbound:
                     note = (
@@ -700,15 +702,21 @@ async def run_agent_loop(
                 return {
                     "error": f"api: {type(e).__name__}: {e}",
                     "files_changed": sorted(changed),
-                    "steps": step,
+                    "steps": step + 1,
                     "usage": usage,
+                    "transcript_tail": tail[-12:],
                 }
             u = data.get("usage", {})
             usage["prompt_tokens"] += u.get("prompt_tokens", 0)
             usage["completion_tokens"] += u.get("completion_tokens", 0)
             record_spend(work, body["model"], u)
             msg = data["choices"][0]["message"]
-            messages.append(msg)
+            # Re-send only the standard fields; provider extras (reasoning,
+            # annotations, ...) can 400 on stricter OpenAI-compatible backends.
+            clean = {"role": "assistant", "content": msg.get("content")}
+            if msg.get("tool_calls"):
+                clean["tool_calls"] = msg["tool_calls"]
+            messages.append(clean)
             calls = msg.get("tool_calls")
             if not calls:
                 return _finish("done", msg.get("content", ""), step + 1)

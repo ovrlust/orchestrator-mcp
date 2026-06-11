@@ -47,6 +47,7 @@ class Session:
         created=None,
         updated=None,
         mode="delegate",
+        allow_commands=None,
     ):
         self.id = sid
         self.cwd = cwd
@@ -59,6 +60,9 @@ class Session:
         self.updated = updated or _now()
         # "solo" = single agent, no worker dispatch; "delegate" = + delegate/spawn_agent
         self.mode = mode if mode in ("solo", "delegate") else "delegate"
+        # Server-side shell allowlist for run_command/delegate/spawn_agent.
+        # The model can narrow this per call but never widen it.
+        self.allow_commands = list(allow_commands or [])
 
     def to_dict(self):
         return {
@@ -69,6 +73,7 @@ class Session:
             "model": self.model,
             "status": self.status,
             "mode": self.mode,
+            "allow_commands": self.allow_commands,
             "messages": self.messages,
             "created": self.created,
             "updated": self.updated,
@@ -80,7 +85,9 @@ class Session:
         return d
 
 
-def create(cwd, title="", provider="openrouter", model="", mode="delegate"):
+def create(
+    cwd, title="", provider="openrouter", model="", mode="delegate", allow_commands=None
+):
     sid = uuid.uuid4().hex[:12]
     s = Session(
         sid,
@@ -89,6 +96,7 @@ def create(cwd, title="", provider="openrouter", model="", mode="delegate"):
         provider,
         model,
         mode=mode,
+        allow_commands=allow_commands,
     )
     save(s)
     return s
@@ -120,6 +128,7 @@ def get(sid) -> Session | None:
         d.get("created"),
         d.get("updated"),
         d.get("mode", "delegate"),
+        d.get("allow_commands"),
     )
 
 

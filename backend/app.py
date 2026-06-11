@@ -18,13 +18,32 @@ import messages as msgbus  # noqa: E402
 from . import session as sessions, orchestrator, providers, commands
 
 app = FastAPI(title="delegate-harness")
+# Local-only by default: a wildcard here would let any web page the user visits
+# create sessions and run turns on their API keys. Override for a deployed UI.
+_ORIGINS = os.environ.get(
+    "HARNESS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://localhost:5173,"
+    "http://127.0.0.1:3000,http://127.0.0.1:5173",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in _ORIGINS if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+
+_turn_tasks: dict = {}  # sid -> running turn task
+
+
+def _turn_done(sid, task):
+    _turn_tasks.pop(sid, None)
+    if not task.cancelled() and task.exception():
+        e = task.exception()
+        sessions.append_event(
+            sid, {"type": "error", "error": f"turn crashed: {type(e).__name__}: {e}"}
+        )
 
 
 def _require(sid):
@@ -48,6 +67,7 @@ async def create_session(body: dict):
         body.get("provider", "openrouter"),
         body.get("model", ""),
         body.get("mode", "delegate"),
+        body.get("allow_commands"),
     )
     return s.to_dict()
 
@@ -82,7 +102,9 @@ async def post_message(sid: str, body: dict):
         return await commands.run(s, text)
     if orchestrator.is_running(sid):
         raise HTTPException(409, "a turn is already running")
-    asyncio.create_task(orchestrator.run_turn(s, text))
+    task = asyncio.create_task(orchestrator.run_turn(s, text))
+    _turn_tasks[sid] = task  # keep a strong ref; the loop only holds a weak one
+    task.add_done_callback(lambda t: _turn_done(sid, t))
     return {"ok": True}
 
 

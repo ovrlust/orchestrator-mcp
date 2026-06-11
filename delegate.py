@@ -103,16 +103,34 @@ async def process_order(
         allow_cmds,
     )
 
-    abspath = safe_path(work, out) if out else None
+    try:
+        abspath = safe_path(work, out) if out else None
+    except ValueError as e:
+        reg_update(work, oid, status="failed", attempts=0, error=str(e)[:300])
+        event(work, "fail", oid, error=str(e)[:200])
+        return {
+            "id": oid,
+            "status": "failed",
+            "attempts": 0,
+            "error": str(e),
+            "output_path": out,
+            "usd": 0.0,
+        }
     original = abspath.read_bytes() if (abspath and abspath.exists()) else None
 
     attempts = 0
-    last_err = None
     spent = 0.0
     base_prompt = awareness_block(work, deps) + prompt
     cur_prompt = base_prompt
+    # A misconfigured edit order must fail before spending a worker call.
+    precondition_err = (
+        "edit mode requires an existing output_path file to edit"
+        if edit_mode and original is None
+        else None
+    )
+    last_err = precondition_err
 
-    while attempts <= max_retries:
+    while precondition_err is None and attempts <= max_retries:
         attempts += 1
         r = await call_model(
             client, cur_prompt, model, system, temperature, max_tokens, fallback
@@ -125,9 +143,6 @@ async def process_order(
         text = r["text"]
         applied_content = text
         if edit_mode:
-            if abspath is None or original is None:
-                last_err = "edit mode requires an existing output_path file to edit"
-                break
             try:
                 ops = parse_edit_payload(text)
                 applied_content = apply_edits(original.decode("utf-8", "replace"), ops)
@@ -266,6 +281,8 @@ async def run_delegate(
                 event(work, "skip", oid, failed_deps=bad)
                 pending.discard(oid)
             if not ready:
+                if skip:
+                    continue  # skips may unblock transitive skips next pass
                 if pending:  # nothing runnable and nothing skipped -> dependency cycle
                     for oid in list(pending):
                         results[oid] = {

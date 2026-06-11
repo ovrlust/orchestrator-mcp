@@ -81,7 +81,9 @@ def put(model, system, prompt, temperature, max_tokens, result) -> None:
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         path = _path(_key(model, system, prompt, temperature, max_tokens))
-        tmp = path.with_suffix(".json.tmp")
+        # PID-unique temp name: two processes caching the same key must not
+        # interleave writes into one temp file before the atomic replace.
+        tmp = path.with_suffix(f".json.{os.getpid()}.tmp")
         with open(tmp, "w") as f:
             json.dump({"text": result["text"], "model": result.get("model", model)}, f)
         os.replace(tmp, path)  # atomic

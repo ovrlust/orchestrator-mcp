@@ -4,7 +4,7 @@
 Reads the same <work_dir>/.delegate/ state the MCP writes (no new deps, stdlib
 only) and serves a single auto-refreshing page showing the agent roster, the
 shared blackboard, the live event log, and total spend. A message box lets YOU
-post into the shared feed (board key "messages") that agents read and reply to
+post onto the message bus (messages.jsonl) that agents read and reply to
 via their post_message tool — your channel into the swarm.
 
     python viewer.py <work_dir> [port]      # default port 7878

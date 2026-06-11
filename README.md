@@ -52,13 +52,21 @@ toolset = worker tools + `delegate` + `spawn_agent`, filtered by mode),
 | `ask_model_batch` | Many independent orders, concurrently |
 | `delegate_run` | **The autonomous loop.** A DAG of orders → worker → apply → validate → retry-once → rollback-on-fail → share → report |
 | `run_agent` | A worker as a sandboxed, board-aware tool-calling agent (incl. surgical `edit_file`) inside `work_dir` |
+| `direct` | Director: split a plan into sections, each run by its OWN agent in parallel (deps respected) |
+| `supervise` | Same dispatch as `direct`, plus a supervisor model polling live state that can message agents or stop the run |
 | `board_read` / `board_write` | Read/seed the shared blackboard |
 | `send_message` / `read_messages` | Talk to agents (directed or broadcast) over the message bus |
 | `agents` | The live agent roster (who exists, task, status, files) |
+| `monitor` | One live view of a run: roster + events + board keys + messages |
 | `events` | Tail the lifecycle event log |
+| `tool_log` | Per-tool-call audit log for `run_agent` workers (filter by agent/fn/errors) |
 | `coord_reset` | Wipe board/registry/events/messages for a fresh run (ledger kept) |
+| `understand_project` | Scan a repo once into a cached structural map (incremental, no model calls) |
+| `project_context` / `project_overview` | Read the cached map / a free architecture digest |
+| `summarize_project` | Opt-in cheap-LLM 1-line role summary per file (incremental) |
 | `list_models` | Curated cheap workers with prices |
 | `get_spend` | Total worker spend logged for a `work_dir` (tokens + USD) |
+| `cache_stats` | Inspect/clear the deterministic worker result cache |
 
 ## The delegate loop
 
@@ -254,24 +262,34 @@ responses. Each compaction logs a `compact` event.
 ## Safety rails
 
 - Every file path is confined to `work_dir`; escapes are rejected.
-- Shell execution (`run_command`, shell validators) is **off** unless the caller
-  passes `allow_commands` prefixes. A hard denylist blocks `rm -rf`, `sudo`,
-  `curl`, etc. regardless.
+- Shell execution (`run_command`, shell validators, hooks) is **off** unless the
+  caller passes `allow_commands` prefixes, matched on a token boundary. Shell
+  chaining/redirection (`;`, `&&`, `|`, `>`, `` ` ``, `$(`) is rejected whenever
+  an allowlist is in force, and a hard denylist blocks `rm -rf`, `sudo`, `curl`,
+  etc. regardless.
 - The worker never touches disk outside `work_dir`.
+- These rails are best-effort protection against accidents, **not a security
+  boundary** — keep allowlists tight and don't run untrusted prompts with broad
+  ones.
+- The worker's `fetch_url` / `web_search` / `download` tools are unrestricted
+  network egress (the shell denylist on `curl`/`wget` does not gate them);
+  `download` writes only inside `work_dir`.
 
 ## Cost tracking
 
 Every worker call appends `{model, tokens, usd}` to
 `work_dir/.delegate/ledger.json`. `get_spend(work_dir)` aggregates it so Claude
 can report real spend and decide when delegating stops paying off.
+(`ask_model` / `ask_model_batch` take no `work_dir` by nature — pass one
+explicitly to have their calls logged too.)
 
 ## Setup
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-cp .env.example .env   # then add your OPENROUTER_API_KEY
-.venv/bin/python -m pytest tests/ -q   # 104 network-free tests
+cp .env.example .env   # then add your OPENROUTER_API_KEY (loaded at startup)
+.venv/bin/python -m pytest tests/ -q   # network-free test suite
 ```
 
 Registered in `~/.claude.json` as the `delegate` MCP. **Add your

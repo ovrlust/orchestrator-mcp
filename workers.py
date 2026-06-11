@@ -115,15 +115,15 @@ async def chat_resilient(
         except httpx.HTTPStatusError as e:
             if e.response.status_code not in RETRY_STATUS or attempt == max_retries:
                 raise
-            wait = _retry_after(e, delay)
+            err, wait = e, _retry_after(e, delay)
         except (httpx.TimeoutException, httpx.TransportError) as e:
             if attempt == max_retries:
                 raise
-            wait = delay
+            err, wait = e, delay
         jitter = random.uniform(0, base_delay) if base_delay else 0.0
         wait = wait + jitter
         if on_retry:
-            on_retry(attempt, wait)
+            on_retry(attempt, wait, err)
         await asyncio.sleep(wait)
         delay = min(delay * 2, max_delay)
 
