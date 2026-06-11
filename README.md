@@ -6,23 +6,23 @@ expensive) plans and validates; a swarm of cheap external models (deepseek via
 grind — without filling Claude's context with the files they read.
 
 ```mermaid
-flowchart TD
-    U([You]) --> C{{"Claude — orchestrator<br/>plans · validates · decides"}}
-    C -.->|"big self-contained job"| D["orchestrator-driver<br/>(Claude sub-agent, fresh context)"]
-    C --> M[/"orchestrator MCP"/]
+flowchart LR
+    U([You]) --> C{{"Claude<br/>orchestrator"}}
+    C -.->|big job| D["orchestrator-driver<br/>Claude sub-agent"]
+    C --> M[/"MCP"/]
     D --> M
 
-    subgraph workers ["cheap deepseek workers"]
+    subgraph W ["cheap deepseek workers"]
       direction LR
-      A1["explore scout<br/>read-only"]
-      A2["general agent<br/>read·edit·run"]
-      A3["map_files<br/>bulk transform"]
-      A4["delegate_run<br/>validated DAG"]
-      A5["skeptic<br/>refute & verify"]
+      A1["explore"]
+      A2["general"]
+      A3["map_files"]
+      A4["delegate_run"]
+      A5["skeptic"]
     end
 
-    M --> workers
-    workers --> CO[("shared state<br/>board · registry · msgbus · ledger")]
+    M --> W
+    W --> CO[("shared state<br/>board · msgbus · ledger")]
     CO -.->|"one compact report"| C
 
     classDef brain fill:#6d28d9,stroke:#4c1d95,color:#fff;
