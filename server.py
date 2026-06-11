@@ -47,7 +47,7 @@ from delegate import run_delegate
 from mapfiles import run_map_files
 from director import run_director
 
-mcp = FastMCP("delegate")
+mcp = FastMCP("orchestrator")
 
 
 def _resolve(work_dir: str) -> str:

@@ -1,4 +1,4 @@
-# delegate
+# orchestrator
 
 An MCP server for the **orchestrator → worker** pattern.
 
@@ -8,7 +8,7 @@ push high-volume, fully-specifiable grind onto the cheap model while Claude keep
 the judgment — and to do it without Claude babysitting every unit.
 
 (The standalone browser harness that used to live in `backend/` is now its own
-project: [delegate-harness](../delegate-harness). It imports this project's
+project: [orchestrator-harness](../orchestrator-harness). It imports this project's
 modules via `DELEGATE_MCP_PATH`.)
 
 ## Tools
@@ -339,7 +339,7 @@ work; until then every tool returns a clear "key not set" error.
 ## Layout
 
 ```
-delegate_mcp/
+orchestrator_mcp/
 ├── server.py          # thin MCP surface: tool wrappers + FastMCP entrypoint
 ├── store.py           # lock + .delegate/ path helpers
 ├── ledger.py          # model catalog, pricing, spend ledger
