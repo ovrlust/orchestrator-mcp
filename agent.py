@@ -615,13 +615,16 @@ async def run_agent_loop(
     agent_type: str = "general",
     output_schema: dict = None,
     messages: list = None,
+    checkpoint=None,
 ) -> dict:
     """Tool-calling agent loop inside work. See server.run_agent for the contract.
 
     agent_type picks a preset (system prompt + tool subset); output_schema forces
     done(summary) to be JSON matching the schema (rejections fed back, bounded
     retries); messages (a saved transcript, last entry a user message) resumes a
-    previous run instead of starting fresh — task is ignored then.
+    previous run instead of starting fresh — task is ignored then. checkpoint, if
+    given, is called as checkpoint(messages, step, changed) at the top of every
+    step so the caller can persist progress for crash/cancel recovery.
     """
     allow_cmds = allow_cmds or []
     if agent_type not in presets.PRESETS:
@@ -708,6 +711,10 @@ async def run_agent_loop(
             # Heartbeat: reflect live progress in the registry so the orchestrator
             # (and the monitor tool) can see this agent is alive and where it is.
             reg_update(work, agent_id, step=step + 1, last_active=round(time.time(), 3))
+
+            # Checkpoint the transcript so a crash or cancel mid-step is resumable.
+            if checkpoint:
+                checkpoint(messages, step + 1, sorted(changed))
 
             # Push delivery: pull messages that arrived for this agent since we last
             # looked and inject them into the conversation, so a directive from the

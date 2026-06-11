@@ -4,3 +4,12 @@
 {"ts": 1781150095.801, "type": "finish", "agent": "explore-a49ca3", "status": "done"}
 {"ts": 1781150109.148, "type": "start", "agent": "schema-test", "task": "Count the Python files in the project root (not tests/, not hidden dirs) and rep"}
 {"ts": 1781150124.086, "type": "finish", "agent": "schema-test", "status": "done"}
+{"ts": 1781154478.18, "type": "start", "agent": "probe-trace", "task": "Trace the full lifecycle of a single message posted via post_message: which file"}
+{"ts": 1781154483.867, "type": "board_set", "agent": "probe-trace", "key": "plan"}
+{"ts": 1781154517.016, "type": "board_set", "agent": "probe-trace", "key": "plan"}
+{"ts": 1781154541.216, "type": "board_set", "agent": "probe-trace", "key": "plan"}
+{"ts": 1781154541.216, "type": "finish", "agent": "probe-trace", "status": "incomplete"}
+{"ts": 1781154560.878, "type": "start", "agent": "probe-tight", "task": "Trace the lifecycle of a message posted via post_message. Read AT MOST these fil"}
+{"ts": 1781154585.477, "type": "finish", "agent": "probe-tight", "status": "done"}
+{"ts": 1781154760.599, "type": "start", "agent": "provenfix", "task": "Trace the lifecycle of a message posted via post_message: how seq is assigned, p"}
+{"ts": 1781154818.505, "type": "finish", "agent": "provenfix", "status": "done"}

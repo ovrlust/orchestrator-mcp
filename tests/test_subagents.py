@@ -245,8 +245,73 @@ def test_result_unknown_agent_errors(tmp_path):
     assert "no agent" in r["error"]
 
 
-def test_orphaned_run_reported_lost(tmp_path):
+def test_orphan_without_checkpoint_not_resumable(tmp_path):
     work = str(tmp_path)
     subagents.save(work, "zombie", {"agent_id": "zombie", "status": "running"})
     r = run(subagents.result(work, "zombie"))
-    assert r["status"] == "lost"
+    assert r["status"] == "orphaned" and r["resumable"] is False
+
+
+def test_orphan_with_checkpoint_is_resumable(tmp_path):
+    work = str(tmp_path)
+    subagents.save(
+        work,
+        "zombie",
+        {
+            "agent_id": "zombie",
+            "status": "running",
+            "step": 3,
+            "messages": [{"role": "system", "content": "s"}, {"role": "user", "content": "t"}],
+        },
+    )
+    r = run(subagents.result(work, "zombie"))
+    assert r["status"] == "orphaned" and r["resumable"] is True
+
+
+def test_checkpoint_persists_each_step(tmp_path, monkeypatch):
+    work = str(tmp_path)
+    # Two tool turns then done — checkpoints should land before the run ends.
+    monkeypatch.setattr(
+        agent,
+        "chat_resilient",
+        scripted(
+            [
+                _tc("list_dir", {}),
+                _tc("list_dir", {}),
+                _tc("done", {"summary": "ok"}),
+            ]
+        ),
+    )
+    run(subagents.run_and_persist(work, "t", "", "cp1", [], 10, "", "general"))
+    rec = subagents.load(work, "cp1")
+    assert rec["status"] == "done"  # final state persisted
+    assert rec["messages"]  # transcript on disk
+
+
+def test_stop_cancels_and_leaves_resumable_checkpoint(tmp_path, monkeypatch):
+    work = str(tmp_path)
+    started = asyncio.Event()
+
+    async def slow_chat(client, body, timeout=None, **k):
+        started.set()
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(agent, "chat_resilient", slow_chat)
+
+    async def flow():
+        subagents.spawn(work, "long task", "", "stopme", [], 10, "", "general")
+        await started.wait()  # ensure it past the first checkpoint
+        await asyncio.sleep(0.05)
+        s = subagents.stop(work, "stopme")
+        assert s["status"] == "stopping"
+        r = await subagents.result(work, "stopme", wait_seconds=5)
+        assert r["status"] == "stopped"
+        rec = subagents.load(work, "stopme")
+        assert rec["status"] == "stopped" and rec["messages"]  # resumable
+
+    run(flow())
+
+
+def test_stop_unknown_agent_errors(tmp_path):
+    r = subagents.stop(str(tmp_path), "ghost")
+    assert "no running agent" in r["error"]

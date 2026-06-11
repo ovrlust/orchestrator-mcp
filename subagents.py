@@ -73,34 +73,57 @@ async def run_and_persist(
     messages: list = None,
 ) -> dict:
     """Run the agent loop, persist the full transcript, return the result
-    (without the transcript — that stays on disk)."""
-    r = await agent_mod.run_agent_loop(
-        task,
-        work,
-        model,
-        agent_id,
-        allow_cmds,
-        max_steps,
-        system,
-        agent_type=agent_type,
-        output_schema=output_schema,
-        messages=messages,
-    )
+    (without the transcript — that stays on disk).
+
+    The transcript is checkpointed to disk every step, so a crash or an
+    agent_stop mid-run leaves a resumable record (status='stopped') rather than
+    a lost one.
+    """
+    meta = {
+        "agent_id": agent_id,
+        "agent_type": agent_type,
+        "model": model,
+        "allow_cmds": allow_cmds or [],
+        "output_schema": output_schema,
+        "task": (task or "(resumed)")[:300],
+    }
+
+    def _checkpoint(msgs, step, changed):
+        save(
+            work,
+            agent_id,
+            {**meta, "status": "running", "step": step, "messages": list(msgs),
+             "result": None},
+        )
+
+    try:
+        r = await agent_mod.run_agent_loop(
+            task,
+            work,
+            model,
+            agent_id,
+            allow_cmds,
+            max_steps,
+            system,
+            agent_type=agent_type,
+            output_schema=output_schema,
+            messages=messages,
+            checkpoint=_checkpoint,
+        )
+    except asyncio.CancelledError:
+        # agent_stop cancelled us mid-await. The last checkpoint already holds
+        # the transcript; mark it stopped (resumable via agent_send) and re-raise
+        # so the task is properly cancelled.
+        rec = load(work, agent_id) or {**meta, "messages": messages}
+        rec["status"] = "stopped"
+        rec["result"] = {"status": "stopped", "result": "(stopped by agent_stop)"}
+        save(work, agent_id, rec)
+        raise
     transcript = r.pop("messages", None)
     save(
         work,
         agent_id,
-        {
-            "agent_id": agent_id,
-            "agent_type": agent_type,
-            "model": model,
-            "allow_cmds": allow_cmds or [],
-            "output_schema": output_schema,
-            "task": (task or "(resumed)")[:300],
-            "status": _status_of(r),
-            "result": r,
-            "messages": transcript,
-        },
+        {**meta, "status": _status_of(r), "result": r, "messages": transcript},
     )
     return r
 
@@ -169,6 +192,8 @@ async def result(work: str, agent_id: str, wait_seconds: float = 0) -> dict:
                 await asyncio.wait_for(asyncio.shield(t), wait_seconds)
             except asyncio.TimeoutError:
                 pass
+            except asyncio.CancelledError:
+                pass  # stopped via agent_stop — reported as 'stopped' below
         if not t.done():
             reg = reg_get(work).get(agent_id, {})
             return {
@@ -178,6 +203,12 @@ async def result(work: str, agent_id: str, wait_seconds: float = 0) -> dict:
                 "files_so_far": reg.get("files", []),
             }
         _TASKS.pop(key, None)
+        if t.cancelled():
+            return {
+                "status": "stopped",
+                "result": "(stopped by agent_stop)",
+                "note": "resume from its last checkpoint with agent_send",
+            }
         try:
             r = t.result()
         except Exception as e:  # noqa: BLE001 - surface the crash, don't raise
@@ -187,12 +218,33 @@ async def result(work: str, agent_id: str, wait_seconds: float = 0) -> dict:
     if not rec:
         return {"error": f"no agent '{agent_id}' in this work_dir"}
     if rec.get("status") == "running":
+        # Server restarted mid-run with no live task. Thanks to per-step
+        # checkpointing the transcript is on disk, so this is resumable.
+        resumable = bool(rec.get("messages"))
         return {
-            "status": "lost",
-            "error": "agent was running but the server restarted mid-run; "
-            "its transcript was not saved — spawn it again",
+            "status": "orphaned",
+            "step": rec.get("step"),
+            "error": "agent was running but no live task owns it (server restart?)."
+            + (" Resume from its last checkpoint with agent_send."
+               if resumable else " No checkpoint saved — spawn it again."),
+            "resumable": resumable,
         }
     return {"status": rec.get("status"), **(rec.get("result") or {})}
+
+
+def stop(work: str, agent_id: str) -> dict:
+    """Cancel a running background agent. Its last per-step checkpoint stays on
+    disk, so the partial run is resumable with agent_send."""
+    key = (work, agent_id)
+    t = _TASKS.get(key)
+    if not t or t.done():
+        return {"error": f"no running agent '{agent_id}' to stop in this work_dir"}
+    t.cancel()
+    return {
+        "status": "stopping",
+        "agent_id": agent_id,
+        "note": "cancelled; agent_result will report 'stopped', agent_send can resume it",
+    }
 
 
 async def send(work: str, agent_id: str, message: str, max_steps: int = 15) -> dict:

@@ -1,0 +1,28 @@
+{
+  "plan": [
+    {
+      "text": "Read messages.py \u2014 message data model and storage",
+      "done": true
+    },
+    {
+      "text": "Read coordination.py \u2014 post_message / read_messages implementations",
+      "done": true
+    },
+    {
+      "text": "Read agent.py \u2014 agent message polling loop",
+      "done": true
+    },
+    {
+      "text": "Read server.py \u2014 how agents receive messages (push vs poll)",
+      "done": true
+    },
+    {
+      "text": "Trace read cursor persistence",
+      "done": true
+    },
+    {
+      "text": "Assemble numbered flow report",
+      "done": true
+    }
+  ]
+}

@@ -106,5 +106,239 @@
     "prompt_tokens": 2976,
     "completion_tokens": 192,
     "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 89,
+    "completion_tokens": 47,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 143,
+    "completion_tokens": 7168,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 122,
+    "completion_tokens": 312,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 129,
+    "completion_tokens": 1630,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 1574,
+    "completion_tokens": 200,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2098,
+    "completion_tokens": 176,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2280,
+    "completion_tokens": 108,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 4891,
+    "completion_tokens": 137,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 8124,
+    "completion_tokens": 144,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 10024,
+    "completion_tokens": 200,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 13229,
+    "completion_tokens": 242,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 14762,
+    "completion_tokens": 153,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 15149,
+    "completion_tokens": 188,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 16856,
+    "completion_tokens": 85,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 17550,
+    "completion_tokens": 278,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 18386,
+    "completion_tokens": 122,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 18695,
+    "completion_tokens": 206,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 19306,
+    "completion_tokens": 155,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 19480,
+    "completion_tokens": 2048,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 1670,
+    "completion_tokens": 107,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 1801,
+    "completion_tokens": 96,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 4174,
+    "completion_tokens": 132,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 4262,
+    "completion_tokens": 95,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 4532,
+    "completion_tokens": 200,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 6841,
+    "completion_tokens": 178,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 7174,
+    "completion_tokens": 467,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 7845,
+    "completion_tokens": 304,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 1645,
+    "completion_tokens": 235,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2000,
+    "completion_tokens": 130,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 3391,
+    "completion_tokens": 223,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 5407,
+    "completion_tokens": 190,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 7587,
+    "completion_tokens": 241,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 10127,
+    "completion_tokens": 100,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 10987,
+    "completion_tokens": 161,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 13253,
+    "completion_tokens": 93,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 14823,
+    "completion_tokens": 145,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 15828,
+    "completion_tokens": 82,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 16840,
+    "completion_tokens": 817,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 18024,
+    "completion_tokens": 2026,
+    "usd": 0.0
   }
 ]

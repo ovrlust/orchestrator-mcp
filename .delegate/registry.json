@@ -14,5 +14,29 @@
     "step": 5,
     "last_active": 1781150121.736,
     "files": []
+  },
+  "probe-trace": {
+    "task": "Trace the full lifecycle of a single message posted via post_message: which file writes it, how seq is assigned, how a r",
+    "status": "incomplete",
+    "kind": "explore",
+    "step": 15,
+    "last_active": 1781154517.017,
+    "files": []
+  },
+  "probe-tight": {
+    "task": "Trace the lifecycle of a message posted via post_message. Read AT MOST these files: messages.py, agent.py (only the run_",
+    "status": "done",
+    "kind": "explore",
+    "step": 8,
+    "last_active": 1781154580.835,
+    "files": []
+  },
+  "provenfix": {
+    "task": "Trace the lifecycle of a message posted via post_message: how seq is assigned, push vs poll delivery, where the read cur",
+    "status": "done",
+    "kind": "explore",
+    "step": 12,
+    "last_active": 1781154794.784,
+    "files": []
   }
 }

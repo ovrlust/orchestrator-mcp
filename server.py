@@ -468,6 +468,19 @@ async def agent_result(work_dir: str, agent_id: str, wait_seconds: float = 0) ->
 
 
 @mcp.tool()
+def agent_stop(work_dir: str, agent_id: str) -> dict:
+    """Cancel a running background (spawned) agent. Its last per-step checkpoint
+    is kept, so agent_result reports 'stopped' and agent_send can resume it from
+    where it was cut off."""
+    work = _existing(work_dir)
+    if not work:
+        return {"error": f"work_dir not found: {work_dir}"}
+    if not subagents.valid_id(agent_id):
+        return {"error": f"invalid agent_id: {agent_id}"}
+    return subagents.stop(work, agent_id)
+
+
+@mcp.tool()
 async def agent_send(
     work_dir: str, agent_id: str, message: str, max_steps: int = 15
 ) -> dict:
