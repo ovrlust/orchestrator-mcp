@@ -107,9 +107,12 @@ Sub-agents work like Claude's native Agent tool, on cheap models:
 - **Presets** (`agent_type`): `explore` is a read-only scout (find → read windows
   → return compressed findings with `path:line` refs; cannot edit or run
   commands — enforced server-side, not just by prompt). `plan` is read-only +
-  `write_board`, returns an implementation plan. `general` (default) is the full
-  executor. Every type gets the REPORT CONTRACT: its `done(summary)` is a return
-  value for the orchestrator, not chat.
+  `write_board`, returns an implementation plan. `skeptic` is a read-only
+  adversarial verifier — give it a claim/finding and it tries to REFUTE it
+  against the code, returning verified/refuted/uncertain + evidence ($0
+  double-check for a worker's output). `general` (default) is the full executor.
+  Every type gets the REPORT CONTRACT: its `done(summary)` is a return value for
+  the orchestrator, not chat.
 - **Structured output** (`output_schema`): the final summary must be JSON
   matching your schema — validated server-side, rejections fed back to the agent
   (bounded retries), `result` returned as the parsed object.

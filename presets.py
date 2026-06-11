@@ -43,6 +43,19 @@ _EXPLORE = (
     "compressed — it is consumed by an orchestrator, not read for pleasure."
 )
 
+_SKEPTIC = (
+    "You are an ADVERSARIAL VERIFIER (read-only). The TASK contains a claim, a "
+    "finding, or a change to check against the actual code. Your job is to try to "
+    "REFUTE it: find the counter-example, the missed case, the line that "
+    "contradicts it. Read the relevant code directly — do not take the claim's "
+    "word for anything. Default to skepticism: if you cannot find solid evidence "
+    "the claim holds, treat it as NOT verified. You cannot edit or run commands.\n"
+    "Be efficient: read only what's needed to confirm or break the claim, then "
+    "call done(). Report: a verdict (verified / refuted / uncertain), the specific "
+    "evidence as path:line references, and — if refuted or uncertain — exactly "
+    "what is wrong or unproven."
+)
+
 _PLAN = (
     "You are a PLANNING agent. Investigate the codebase (read-only) ONLY as much "
     "as the plan requires, then produce a concrete implementation plan for the "
@@ -76,6 +89,7 @@ PRESETS = {
     "general": {"system": _GENERAL, "tools": None},
     "explore": {"system": _EXPLORE, "tools": _READONLY_TOOLS},
     "plan": {"system": _PLAN, "tools": _READONLY_TOOLS | {"write_board"}},
+    "skeptic": {"system": _SKEPTIC, "tools": _READONLY_TOOLS},
 }
 
 

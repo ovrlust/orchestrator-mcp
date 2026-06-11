@@ -89,6 +89,30 @@ def test_bulk_transform_applies_to_every_file(tmp_path, monkeypatch):
     assert (tmp_path / "b.py").read_text() == "PRINT('B')\n"
 
 
+def test_code_fence_stripped_from_full_file_output(tmp_path, monkeypatch):
+    import workers as w
+
+    (tmp_path / "a.py").write_text("x = 1\n")
+
+    async def fenced(client, prompt, model, system="", temperature=0.0,
+                     max_tokens=0, fallback=""):
+        return {"text": "```python\nx = 2\n```", "model": "fake", "usage": {}}
+
+    monkeypatch.setattr(w, "API_KEY", "test")
+    monkeypatch.setattr(delegate, "call_model", fenced)
+    run(mapfiles.run_map_files(str(tmp_path), "a.py", "set x to 2"))
+    # the wrapping ```python fence is gone, only the real content written
+    assert (tmp_path / "a.py").read_text() == "x = 2"
+
+
+def test_strip_code_fence_leaves_unfenced_alone():
+    assert delegate._strip_code_fence("x = 1\ny = 2") == "x = 1\ny = 2"
+    assert delegate._strip_code_fence("```py\nx = 1\n```") == "x = 1"
+    # a fence that's only part of the content (e.g. a doc example) is NOT stripped
+    body = "text\n```\ncode\n```\nmore"
+    assert delegate._strip_code_fence(body) == body
+
+
 def test_validator_failure_rolls_back(tmp_path, monkeypatch):
     _seed(tmp_path)
     _fake_uppercase(monkeypatch)

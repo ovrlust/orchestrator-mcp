@@ -46,6 +46,13 @@ discipline the model lacks: scope, a convergence signal, and a result shape.
 - **Literal/positional instructions.** Asked for "the third word of this
   sentence" it answered `word` (actual: `valid`). Don't rely on it for exact
   counting, indexing, or character-level precision.
+- **Wrapping file output in markdown fences.** Told to return a complete file, it
+  wraps the answer in ```` ```python … ``` ````. Writing that verbatim corrupts
+  the file (stray fences become real lines) — caught live: a `map_files` run
+  "passed" its validator while leaving broken ``` lines in 2 of 3 files. The
+  apply path now strips a single wrapping fence (`delegate._strip_code_fence`),
+  and the bulk prompt forbids fences. Lesson: validate structure, and never trust
+  whole-file rewrites from a cheap model without it.
 - **Ignoring a restricted toolset.** On the forced final step, offered only the
   `done` tool, it still emitted a different tool call. Models hallucinate
   un-offered tools — so convergence can't rely on tool restriction alone (see

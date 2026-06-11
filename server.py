@@ -448,6 +448,9 @@ async def run_agent(
                with path:line refs; cannot edit or run commands. Use to gather
                context without bloating your own.
       plan     read-only + write_board; returns an implementation plan.
+      skeptic  READ-ONLY adversarial verifier — tries to REFUTE a claim/finding
+               against the code; returns verified/refuted/uncertain + evidence.
+               Use to double-check a worker's output cheaply ($0 insurance).
 
     output_schema: JSON Schema the agent's final summary must match — it is
     parsed/validated server-side, rejections are fed back (bounded retries), and

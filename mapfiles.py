@@ -97,7 +97,9 @@ async def run_map_files(
             + (
                 "ONLY a JSON array of {old, new} edits to apply"
                 if edit
-                else "the COMPLETE updated file content, nothing else"
+                else "the COMPLETE updated file content as RAW text — no markdown "
+                "code fences, no ``` , no commentary, preserve every unchanged "
+                "line byte-for-byte"
             )
             + ".\n\n--- CURRENT CONTENT OF "
             + rel

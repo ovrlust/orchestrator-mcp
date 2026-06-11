@@ -3,6 +3,7 @@ validate -> retry -> share, with lifecycle events and dependency awareness.
 """
 
 import os
+import re
 import json
 import asyncio
 import pathlib
@@ -26,6 +27,17 @@ from coordination import (
 from sandbox import safe_path
 from validators import validate
 from edits import apply_edits, parse_edit_payload, EditError
+
+
+_FENCE_RX = re.compile(r"^\s*```[^\n]*\n(.*?)\n?```\s*$", re.S)
+
+
+def _strip_code_fence(text: str) -> str:
+    """Remove a single wrapping ```lang ... ``` markdown fence if the worker
+    wrapped the whole file in one. Leaves un-fenced or partially-fenced content
+    untouched (only strips when the ENTIRE payload is one fence)."""
+    m = _FENCE_RX.match(text)
+    return m.group(1) if m else text
 
 
 def awareness_block(work: str, deps: list) -> str:
@@ -142,6 +154,11 @@ async def process_order(
         spent += record_spend(work, r["model"], r.get("usage", {}))
         text = r["text"]
         applied_content = text
+        # Cheap models often wrap a whole-file answer in a ```lang ... ``` fence.
+        # Writing that verbatim corrupts the file (stray fences as real lines), so
+        # strip a single wrapping fence when the worker is producing file content.
+        if out and not edit_mode:
+            applied_content = _strip_code_fence(applied_content)
         if edit_mode:
             try:
                 ops = parse_edit_payload(text)

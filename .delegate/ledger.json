@@ -604,5 +604,35 @@
     "prompt_tokens": 3393,
     "completion_tokens": 133,
     "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2093,
+    "completion_tokens": 72,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2089,
+    "completion_tokens": 89,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 4057,
+    "completion_tokens": 220,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 2852,
+    "completion_tokens": 1331,
+    "usd": 0.0
+  },
+  {
+    "model": "deepseek-v4-flash-free",
+    "prompt_tokens": 3333,
+    "completion_tokens": 302,
+    "usd": 0.0
   }
 ]

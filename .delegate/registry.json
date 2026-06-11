@@ -158,5 +158,21 @@
     "step": 2,
     "last_active": 1781156661.099,
     "files": []
+  },
+  "false-claim": {
+    "task": "CLAIM to verify against the code: The DEFAULT_MODEL in workers.py is 'gpt-4-turbo'.",
+    "status": "done",
+    "kind": "skeptic",
+    "step": 2,
+    "last_active": 1781157045.372,
+    "files": []
+  },
+  "true-claim": {
+    "task": "CLAIM to verify against the code: sandbox.py blocks 'rm -rf' via the DENY regex.",
+    "status": "done",
+    "kind": "skeptic",
+    "step": 3,
+    "last_active": 1781157060.526,
+    "files": []
   }
 }
