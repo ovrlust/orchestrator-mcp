@@ -59,6 +59,54 @@ def board_append(work: str, key: str, item, agent: str = None) -> int:
     return len(lst)
 
 
+# ------------------------- work claims (anti-overlap) -------------------------
+
+
+def claim_work(work: str, agent: str, items: list) -> dict:
+    """Atomically lease work units so two agents never take the same one.
+
+    Records each requested item under claims.json -> {item: agent}. Returns
+    {granted: [...], taken: {item: other_agent}}. An item already claimed by THIS
+    agent is re-granted (idempotent). The whole check-and-set is under LOCK, so a
+    fleet of agents (Claude sub-agents OR cheap workers) fanning out over the same
+    work_dir can call this to partition the work with no double-coverage.
+    """
+    p = coord_file(work, "claims.json")
+    granted, taken = [], {}
+    with LOCK:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        claims = read_json(p, {})
+        for it in items:
+            key = str(it)
+            owner = claims.get(key)
+            if owner is None or owner == agent:
+                claims[key] = agent
+                granted.append(it)
+            else:
+                taken[key] = owner
+        p.write_text(json.dumps(claims, indent=2))
+    if granted:
+        event(work, "claim", agent, count=len(granted))
+    return {"granted": granted, "taken": taken}
+
+
+def release_work(work: str, agent: str, items: list = None) -> int:
+    """Release this agent's claims (all of them, or just `items`). Returns the
+    count released — lets a re-planned fleet hand units back for reassignment."""
+    p = coord_file(work, "claims.json")
+    n = 0
+    with LOCK:
+        claims = read_json(p, {})
+        want = set(map(str, items)) if items is not None else None
+        for key in [k for k, v in claims.items() if v == agent]:
+            if want is None or key in want:
+                del claims[key]
+                n += 1
+        if p.exists():
+            p.write_text(json.dumps(claims, indent=2))
+    return n
+
+
 # ------------------------- registry -------------------------
 
 
@@ -109,6 +157,34 @@ def events_tail(work: str, limit: int = 50) -> list:
     return out
 
 
+def aggregate_board(work: str, keys: list = None, dedup: bool = True) -> dict:
+    """Collapse the board into one digest for the parent — the N-reports-to-1
+    context saver for a fan-out fleet.
+
+    Each agent publishes its result under its own board key; this merges them.
+    List-valued entries are concatenated (deduplicated by JSON identity when
+    `dedup`); scalar/dict entries are returned per key. `keys` limits which board
+    keys are folded in (default: all). Returns {items: [...], by_key: {...},
+    keys: [...], n_sources: int} so the orchestrator reads ONE merged result
+    instead of pulling every agent's full report into its context.
+    """
+    board = board_get(work) or {}
+    sel = [k for k in board if (keys is None or k in keys)]
+    items, by_key, seen = [], {}, set()
+    for k in sel:
+        v = board[k]
+        by_key[k] = v
+        vals = v if isinstance(v, list) else [v]
+        for item in vals:
+            if dedup:
+                sig = json.dumps(item, sort_keys=True, default=str)
+                if sig in seen:
+                    continue
+                seen.add(sig)
+            items.append(item)
+    return {"items": items, "by_key": by_key, "keys": sel, "n_sources": len(sel)}
+
+
 def coord_clear(work: str) -> None:
     """Wipe board/registry/events for a fresh coordinated run (keeps the ledger)."""
     with LOCK:
@@ -119,6 +195,7 @@ def coord_clear(work: str) -> None:
             "messages.jsonl",
             "toolcalls.jsonl",
             "toolcalls.jsonl.1",
+            "claims.json",
         ):
             f = coord_file(work, name)
             if f.exists():

@@ -233,6 +233,42 @@ def monitor(work_dir: str, events_limit: int = 30, messages_limit: int = 20) -> 
 
 
 @mcp.tool()
+def claim_work(work_dir: str, agent: str, items: list) -> dict:
+    """Atomically lease work units so a FLEET OF AGENTS never overlaps — works for
+    Claude sub-agents (Task tool) and cheap workers alike.
+
+    Give each agent a distinct `agent` id and the list of units it WANTS (file
+    paths, ids, ranges). Returns {granted: [...], taken: {item: owner}}: the agent
+    works only `granted`; `taken` units are already owned by a sibling, so it skips
+    them. This is how you make a parallel fan-out do NO duplicate work — every
+    agent claims before starting. Re-claiming your own items is idempotent;
+    release with coord_reset or a fresh run. Pair with board_write (publish result)
+    + aggregate (collapse all results for the parent)."""
+    work = _existing(work_dir)
+    if not work:
+        return {"error": f"work_dir not found: {work_dir}"}
+    if not isinstance(items, list) or not items:
+        return {"error": "items must be a non-empty list"}
+    return coord.claim_work(work, agent or "agent", items)
+
+
+@mcp.tool()
+def aggregate(work_dir: str, keys: list = None, dedup: bool = True) -> dict:
+    """Collapse every agent's published board results into ONE deduped digest —
+    the N-reports-to-1 context saver after a fan-out.
+
+    When a fleet of agents each `board_write`s its findings under its own key,
+    call this to read the merged union ONCE instead of pulling every agent's full
+    report into your context. List entries are concatenated (deduped by value when
+    `dedup`); `keys` limits which board keys fold in. Returns {items, by_key,
+    keys, n_sources}."""
+    work = _existing(work_dir)
+    if not work:
+        return {"error": f"work_dir not found: {work_dir}"}
+    return coord.aggregate_board(work, keys, dedup)
+
+
+@mcp.tool()
 def events(work_dir: str, limit: int = 50) -> list:
     """Tail the lifecycle event log (start/finish/fail/hook/board_set)."""
     return coord.events_tail(_resolve(work_dir), limit)

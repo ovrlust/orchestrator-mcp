@@ -153,3 +153,53 @@ def test_plan_ready_unknown_dep_treated_satisfied():
     by_id = {"b": {"id": "b", "depends_on": ["ghost"]}}
     ready, skip = coord.plan_ready({"b"}, by_id, {})
     assert ready == ["b"] and skip == []
+
+
+# ------------------------- work claims (anti-overlap) -------------------------
+
+
+def test_claim_grants_then_blocks_sibling(tmp_path):
+    w = str(tmp_path)
+    a = coord.claim_work(w, "agentA", ["f1", "f2", "f3"])
+    assert a["granted"] == ["f1", "f2", "f3"] and a["taken"] == {}
+    # sibling tries overlapping set — only the free one is granted
+    b = coord.claim_work(w, "agentB", ["f3", "f4"])
+    assert b["granted"] == ["f4"]
+    assert b["taken"] == {"f3": "agentA"}
+
+
+def test_claim_is_idempotent_for_same_agent(tmp_path):
+    w = str(tmp_path)
+    coord.claim_work(w, "a", ["x"])
+    again = coord.claim_work(w, "a", ["x", "y"])
+    assert again["granted"] == ["x", "y"] and again["taken"] == {}
+
+
+def test_release_frees_for_reassignment(tmp_path):
+    w = str(tmp_path)
+    coord.claim_work(w, "a", ["x", "y"])
+    n = coord.release_work(w, "a", ["x"])
+    assert n == 1
+    b = coord.claim_work(w, "b", ["x", "y"])
+    assert b["granted"] == ["x"] and b["taken"] == {"y": "a"}
+
+
+# ------------------------- aggregate (N reports -> 1) -------------------------
+
+
+def test_aggregate_merges_and_dedups(tmp_path):
+    w = str(tmp_path)
+    coord.board_set(w, "scoutA", ["bug in auth.py", "slow query"], agent="a")
+    coord.board_set(w, "scoutB", ["slow query", "missing index"], agent="b")
+    agg = coord.aggregate_board(w)
+    assert agg["n_sources"] == 2
+    assert agg["items"].count("slow query") == 1  # deduped across agents
+    assert set(agg["items"]) == {"bug in auth.py", "slow query", "missing index"}
+
+
+def test_aggregate_keys_filter_and_no_dedup(tmp_path):
+    w = str(tmp_path)
+    coord.board_set(w, "a", ["x", "x"], agent="a")
+    coord.board_set(w, "b", ["y"], agent="b")
+    only_a = coord.aggregate_board(w, keys=["a"], dedup=False)
+    assert only_a["items"] == ["x", "x"] and only_a["keys"] == ["a"]

@@ -51,7 +51,7 @@ the free tier.
 | **Sub-agents** | `run_agent`, `spawn_agent` (background), `agent_result`, `agent_send` (resume), `agent_stop` |
 | **Multi-agent** | `direct` (parallel, deps), `supervise` (+ live watcher model) |
 | **Map (free, zero-LLM)** | `understand_project`, `project_context`, `project_overview`, `summarize_project` |
-| **Coordination** | `board_read/write`, `send_message`, `read_messages`, `agents`, `monitor`, `events`, `tool_log` |
+| **Coordination** | `board_read/write`, `claim_work` (atomic anti-overlap lease), `aggregate` (N reports → 1 deduped digest), `send_message`, `read_messages`, `agents`, `monitor`, `events`, `tool_log` |
 | **Ops** | `list_models`, `get_spend`, `cache_stats`, `coord_reset` |
 
 **Agent presets** (`agent_type`): `general` · `explore` (read-only scout) ·
